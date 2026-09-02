@@ -1,0 +1,31 @@
+# ===== 主配置 =====
+
+# 时间窗口：只保留发布时间在最近 N 小时内的条目
+# （比 24 稍宽，避免时区差导致漏稿；不带发布时间的条目一律保留，靠去重兜底）
+time_window_hours: 26
+
+# 成稿最多收录的条目数
+top_n: 12
+
+# 前 N 条（按排序结果）在稿中留下截图占位符
+screenshot_count: 5
+
+# 单条正文提取的最大字符数（喂给 LLM 的长度上限）
+max_text_chars: 2500
+
+# LLM 成稿配置（OpenAI 兼容接口，智谱/DeepSeek/OpenAI 等均可）
+# enabled: auto     = 检测到 api key 就启用，否则退化为列表版
+# enabled: false    = 强制列表版
+# key 建议放环境变量 LLM_API_KEY，不要写进本文件
+llm:
+  enabled: auto
+  base_url: https://api.deepseek.com
+  model: deepseek-v4-flash-vision-exp
+  temperature: 0.7
+
+output:
+  dir: output
+  filename: "AI早报-{date}.md"
+
+# SQLite：记录已见条目，用于跨天去重
+db_path: data/news.db

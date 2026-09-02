@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>信息源设置 · AI 早报</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg'><text y='.9em' font-size='90'>⚙️</text></svg>">
+<link rel="stylesheet" href="/static/style.css">
+<link rel="stylesheet" href="/static/settings.css">
+</head>
+<body class="settings-page">
+<header>
+  <a class="header-link" href="/">← 返回控制中心</a>
+  <div class="settings-heading">
+    <h1>⚙ 信息源设置</h1>
+    <span>统一管理 RSS、更新日志和官方公告页</span>
+  </div>
+  <span class="spacer"></span>
+  <span id="saveState" class="settings-state"></span>
+  <button id="addRssBtn">＋ 新增 RSS</button>
+  <button id="addSourceBtn">＋ 其他类型</button>
+  <button id="saveSourcesBtn" class="primary">保存全部</button>
+</header>
+
+<main class="settings-shell">
+  <section class="settings-intro">
+    <div>
+      <strong id="sourceCount">正在读取信息源…</strong>
+      <p>修改会先保存在页面中；点击“保存全部”后才写入配置。关闭的来源不会参与下一次采集。</p>
+    </div>
+    <label class="source-filter">
+      <span>筛选</span>
+      <input id="sourceFilter" type="search" placeholder="名称、类型或网址">
+    </label>
+  </section>
+  <section id="sourceList" class="source-list" aria-live="polite"></section>
+</main>
+
+<dialog id="sourceDialog" class="source-dialog">
+  <form id="sourceForm" method="dialog">
+    <div class="source-dialog-head">
+      <div>
+        <h2 id="sourceDialogTitle">新增信息源</h2>
+        <p>所有类型最终统一输出标题、链接、摘要和发布时间。</p>
+      </div>
+      <button type="button" id="closeSourceDialog" class="icon-btn" aria-label="关闭">✕</button>
+    </div>
+
+    <div class="source-form-grid">
+      <label class="wide"><span>名称 *</span><input id="fieldName" maxlength="80" required placeholder="例如：机器之心 RSS"></label>
+      <label><span>类型 *</span>
+        <select id="fieldType">
+          <option value="rss">RSS / Atom</option>
+          <option value="changelog">Markdown 更新日志</option>
+          <option value="html_updates">HTML 官方更新页</option>
+          <option value="hackernews">Hacker News API</option>
+        </select>
+      </label>
+      <label><span>分类</span>
+        <select id="fieldCategory">
+          <option value="news">综合资讯</option>
+          <option value="dev">开发生态</option>
+          <option value="product">产品应用</option>
+          <option value="paper">论文与开源</option>
+          <option value="community">社区热点</option>
+        </select>
+      </label>
+      <label><span>权重</span><input id="fieldWeight" type="number" min="0" max="5" step="0.5" value="1"></label>
+      <label class="check-field"><input id="fieldEnabled" type="checkbox" checked><span>启用此来源</span></label>
+      <label class="wide url-field"><span>来源 URL *</span><input id="fieldUrl" type="url" placeholder="https://example.com/feed.xml"></label>
+      <label class="check-field wide"><input id="fieldRequireAi" type="checkbox"><span>仅保留 AI 相关条目（适合综合资讯源）</span></label>
+
+      <div class="type-fields changelog-fields wide" hidden>
+        <label><span>详情页 URL</span><input id="fieldLinkBase" type="url" placeholder="可选，条目最终跳转地址"></label>
+        <label><span>最多读取版本</span><input id="fieldItemLimit" type="number" min="1" max="100" value="5"></label>
+      </div>
+
+      <div class="type-fields html-fields wide" hidden>
+        <label><span>页面适配器</span>
+          <select id="fieldSite">
+            <option value="generic">通用更新链接</option>
+            <option value="zhipu">智谱</option>
+            <option value="qwen">千问</option>
+            <option value="workbuddy">WorkBuddy</option>
+            <option value="qoder">Qoder</option>
+            <option value="moonshot">Kimi / Moonshot</option>
+            <option value="deepseek">DeepSeek</option>
+          </select>
+        </label>
+        <label><span>栏目代码</span><input id="fieldCode" placeholder="可选，仅特殊接口使用"></label>
+      </div>
+
+      <div class="type-fields hn-fields wide" hidden>
+        <label><span>最低热度分</span><input id="fieldMinScore" type="number" min="0" max="100000" value="150"></label>
+      </div>
+    </div>
+
+    <div id="testResult" class="test-result"></div>
+    <div class="source-dialog-foot">
+      <button type="button" id="testSourceBtn">测试抓取</button>
+      <span class="spacer"></span>
+      <button type="button" id="cancelSourceBtn">取消</button>
+      <button type="submit" class="primary">应用到列表</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="/static/settings.js"></script>
+</body>
+</html>

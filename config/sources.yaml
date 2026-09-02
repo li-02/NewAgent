@@ -1,0 +1,103 @@
+# ===== 数据源配置 =====
+# type: rss（通用 RSS/Atom）| hackernews（HN 官方 API）| changelog | html_updates
+# weight: 官方源权重，排序时作为加分项
+# category: news（默认）| paper（归入"论文与开源"小节）
+# 加新源：追加一个条目即可，不用改代码
+
+sources:
+  - name: OpenAI News
+    type: rss
+    url: https://openai.com/news/rss.xml
+    weight: 3
+
+  - name: Google DeepMind Blog
+    type: rss
+    url: https://deepmind.google/blog/rss.xml
+    weight: 3
+
+  - name: TechCrunch AI
+    type: rss
+    url: https://techcrunch.com/category/artificial-intelligence/feed/
+    weight: 1
+
+  - name: The Verge AI
+    type: rss
+    url: https://www.theverge.com/rss/ai-artificial-intelligence/index.xml
+    weight: 1
+
+  - name: Hacker News
+    type: hackernews
+    min_score: 150
+    weight: 1
+    category: community
+    require_ai: true   # HN 是综合热榜，只保留 AI 相关条目
+
+  - name: NVIDIA Blog
+    type: rss
+    url: https://blogs.nvidia.com/feed/
+    weight: 2
+
+  - name: Microsoft Research
+    type: rss
+    url: https://www.microsoft.com/en-us/research/feed/
+    weight: 2
+
+  - name: VentureBeat AI
+    type: rss
+    url: https://venturebeat.com/category/ai/feed/
+    weight: 1
+
+  - name: Claude Code
+    type: changelog
+    format: markdown
+    url: https://raw.githubusercontent.com/anthropics/claude-code/main/CHANGELOG.md
+    link_base: https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md
+    item_limit: 5
+    weight: 3
+    category: dev
+
+  - name: 智谱 AI
+    type: html_updates
+    site: zhipu
+    url: https://docs.bigmodel.cn/cn/update/new-releases
+    weight: 3
+
+  - name: 阿里千问
+    type: html_updates
+    site: qwen
+    url: https://qwen.ai/news
+    code: news.news-list
+    weight: 3
+
+  - name: 腾讯 WorkBuddy
+    type: html_updates
+    site: workbuddy
+    url: https://www.workbuddy.cn/docs/workbuddy/Changelog
+    weight: 3
+    category: dev
+
+  - name: 阿里 Qoder
+    type: html_updates
+    site: qoder
+    url: https://docs.qoder.com/zh/release-notes/qoder
+    weight: 3
+    category: dev
+
+  - name: Kimi
+    type: html_updates
+    site: moonshot
+    url: https://www.moonshot.cn/
+    weight: 3
+
+  - name: DeepSeek News
+    type: html_updates
+    site: deepseek
+    url: https://deepseek.com/en/news/
+    weight: 3
+
+  - name: DeepSeek API
+    type: html_updates
+    site: deepseek
+    url: https://api-docs.deepseek.com/updates/
+    weight: 3
+    category: dev

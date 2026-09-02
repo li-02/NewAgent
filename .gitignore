@@ -1,0 +1,20 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+*.log
+*.lnk
+*.crdownload
+
+# Local runtime data and generated content
+data/
+logs/
+output/
+tmp/
+
+# Local tooling state and browser/test artifacts
+.omx/
+.playwright-cli/
+.pytest_cache/
+.video_agent/
+.obsidian/

@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>AI 早报 · 控制中心</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+  <h1>📰 AI 早报 · 控制中心</h1>
+  <select id="dateSel" title="选择当前稿或历史稿" aria-label="选择历史稿日期"></select>
+  <span id="finalLink"></span>
+  <span class="spacer"></span>
+  <span class="hint">截图：点击下方对应卡片后 Ctrl+V</span>
+  <a class="header-link" href="/settings">⚙ 信息源</a>
+  <button id="runBtn">▶ 采集/成稿</button>
+  <button id="syncBtn" class="primary">🔄 同步滚动：开</button>
+  <button id="refreshBtn" title="重新读取当前日期的草稿并刷新预览">🔃 刷新</button>
+  <button id="saveBtn">💾 保存 (Ctrl+S)</button>
+  <button id="exportBtn" class="primary">📤 导出终稿</button>
+  <button id="copyFinalBtn">📋 复制发布版</button>
+</header>
+
+<main>
+  <aside>
+    <div class="side-title">
+      条目选择
+      <span class="side-btns">
+        <button id="allBtn">全选</button>
+        <button id="noneBtn">清空</button>
+      </span>
+    </div>
+    <div id="itemList"></div>
+    <div class="side-tip">勾选的条目按当前顺序编入终稿；终稿会重新编号并重排概览。</div>
+  </aside>
+
+  <section id="work">
+    <div id="navBar" title="条目导航：点击跳转到对应条目"></div>
+    <section id="imageShelf" aria-label="资讯截图存放区"></section>
+    <div id="panes">
+      <textarea id="editor" spellcheck="false"
+        placeholder="草稿加载中…（若为空：先运行 run.bat 生成当日草稿）"></textarea>
+      <div id="preview" class="md"></div>
+    </div>
+    <div id="status">
+      <span id="statusText"></span>
+      <button id="toggleLogBtn" class="log-toggle" type="button" hidden aria-expanded="false">查看运行日志</button>
+    </div>
+    <pre id="runLog" hidden></pre>
+  </section>
+</main>
+
+<div id="exportPreview" class="modal-backdrop" hidden>
+  <section class="export-dialog" role="dialog" aria-modal="true" aria-labelledby="exportPreviewTitle">
+    <div class="export-dialog-head">
+      <div>
+        <h2 id="exportPreviewTitle">终稿顺序预览</h2>
+        <p>拖动条目块调整前后顺序，确认后才会生成终稿。</p>
+      </div>
+      <button id="closeExportPreviewBtn" class="icon-btn" aria-label="关闭终稿预览">✕</button>
+    </div>
+    <label class="export-title-field" for="exportTitle">
+      <span>终稿标题</span>
+      <input id="exportTitle" type="text" maxlength="120" autocomplete="off">
+      <small>可以修改标题；默认末尾为“| AI日报MMDD”。</small>
+    </label>
+    <label class="export-source-option" for="includeSources">
+      <input id="includeSources" type="checkbox">
+      <span><strong>导出信息源</strong><small>勾选后在终稿末尾附带原文链接，默认不导出。</small></span>
+    </label>
+    <div id="exportPreviewList" class="export-preview-list"></div>
+    <div class="export-dialog-foot">
+      <span id="exportPreviewCount"></span>
+      <span class="spacer"></span>
+      <button id="cancelExportBtn">取消</button>
+      <button id="confirmExportBtn" class="primary">确认并导出</button>
+    </div>
+  </section>
+</div>
+
+<script src="/static/marked.min.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>
