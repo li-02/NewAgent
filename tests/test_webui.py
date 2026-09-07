@@ -15,11 +15,14 @@ class WebUiTests(unittest.TestCase):
         self.output = Path(self.temp.name)
         self.output_patch = patch.object(webui, "OUTPUT", self.output)
         self.output_patch.start()
+        self.log_dir_patch = patch.object(webui, "RUN_LOG_DIR", self.output / "logs")
+        self.log_dir_patch.start()
         webui.app.config.update(TESTING=True)
         self.client = webui.app.test_client()
 
     def tearDown(self) -> None:
         self.output_patch.stop()
+        self.log_dir_patch.stop()
         self.temp.cleanup()
 
     def test_state_uses_latest_numbered_draft(self) -> None:
@@ -42,6 +45,19 @@ class WebUiTests(unittest.TestCase):
         html = response.get_data(as_text=True)
         self.assertIn('id="toggleLogBtn"', html)
         self.assertIn("查看运行日志", html)
+        self.assertIn('id="copyRunLogBtn"', html)
+
+    def test_each_run_log_is_persisted_to_a_separate_file(self) -> None:
+        with webui.run_lock:
+            webui.run_state["logs"].clear()
+            webui.run_state["log_file"] = None
+        webui.start_run_log()
+        webui.append_run_log("测试日志")
+
+        state = webui.snapshot_run_state()
+        log_file = Path(state["log_file"])
+        self.assertTrue(log_file.is_file())
+        self.assertIn("测试日志", log_file.read_text(encoding="utf-8"))
 
     def test_index_includes_image_shelf_count_marker(self) -> None:
         response = self.client.get("/")
@@ -108,6 +124,20 @@ class WebUiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json()["content"], "latest")
+
+    def test_app_settings_default_to_twelve_and_can_update_daily_limit(self) -> None:
+        config = self.output / "config.yaml"
+        config.write_text("# keep this comment\ntop_n: 12\ntime_window_hours: 26\n", encoding="utf-8")
+        with patch.object(webui, "CONFIG_FILE", config):
+            initial = self.client.get("/api/settings")
+            updated = self.client.put("/api/settings", json={"top_n": 18})
+
+        self.assertEqual(initial.status_code, 200)
+        self.assertEqual(initial.get_json()["top_n"], 12)
+        self.assertEqual(updated.status_code, 200)
+        self.assertEqual(updated.get_json()["top_n"], 18)
+        self.assertIn("# keep this comment", config.read_text(encoding="utf-8"))
+        self.assertIn("top_n: 18", config.read_text(encoding="utf-8"))
 
     def test_run_endpoint_starts_background_task(self) -> None:
         fake_thread = unittest.mock.Mock()

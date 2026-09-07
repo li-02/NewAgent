@@ -49,10 +49,12 @@ from src.source_config import (
 ROOT = Path(__file__).parent
 OUTPUT = ROOT / "output"
 SOURCES_FILE = ROOT / "config" / "sources.yaml"
+CONFIG_FILE = ROOT / "config" / "config.yaml"
 DRAFT_RE = re.compile(r"^AI早报-(\d{4}-\d{2}-\d{2})\.md$")
 DRAFT_FILE_RE = re.compile(r"^AI早报-(\d{4}-\d{2}-\d{2})(?:-\d+)?\.md$")
 FINAL_FILE_RE = re.compile(r"^AI早报-(\d{4}-\d{2}-\d{2})-终稿(?:-\d+)?\.md$")
 RUN_LOG_LIMIT = 300
+RUN_LOG_DIR = ROOT / "logs" / "webui"
 MAX_IMAGE_BYTES = 15 * 1024 * 1024
 DAILY_HEADING_RE = re.compile(r"^# AI 早报 \d{4}-\d{2}-\d{2}\s*\n+", re.M)
 AUDIT_CHECKLIST_RE = re.compile(
@@ -64,6 +66,8 @@ app = Flask(__name__, static_folder=str(ROOT / "static"), static_url_path="/stat
 run_lock = threading.Lock()
 run_state = {
     "running": False,
+    "run_id": None,
+    "log_file": None,
     "started_at": None,
     "finished_at": None,
     "returncode": None,
@@ -200,6 +204,8 @@ def snapshot_run_state() -> dict:
     with run_lock:
         return {
             "running": run_state["running"],
+            "run_id": run_state["run_id"],
+            "log_file": run_state["log_file"],
             "started_at": run_state["started_at"],
             "finished_at": run_state["finished_at"],
             "returncode": run_state["returncode"],
@@ -209,8 +215,27 @@ def snapshot_run_state() -> dict:
 
 
 def append_run_log(line: str) -> None:
+    line = line.rstrip()
     with run_lock:
-        run_state["logs"].append(line.rstrip())
+        run_state["logs"].append(line)
+        log_path = Path(run_state["log_file"]) if run_state["log_file"] else None
+    if log_path:
+        try:
+            with log_path.open("a", encoding="utf-8") as handle:
+                handle.write(line + "\n")
+        except OSError:
+            # 日志写入失败不能影响采集/成稿任务本身。
+            pass
+
+
+def start_run_log() -> None:
+    run_id = datetime.now().strftime("%Y-%m-%d_%H-%M-%S-%f")
+    RUN_LOG_DIR.mkdir(parents=True, exist_ok=True)
+    path = RUN_LOG_DIR / f"run-{run_id}.log"
+    path.write_text(f"AI 早报采集/成稿运行\n开始时间：{datetime.now():%Y-%m-%d %H:%M:%S}\n", encoding="utf-8")
+    with run_lock:
+        run_state["run_id"] = run_id
+        run_state["log_file"] = str(path)
 
 
 def run_main_task() -> None:
@@ -231,11 +256,13 @@ def run_main_task() -> None:
         for line in proc.stdout:
             append_run_log(line)
         code = proc.wait()
+        append_run_log(f"运行结束，退出码：{code}")
         with run_lock:
             run_state["returncode"] = code
             run_state["finished_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             run_state["running"] = False
     except Exception as exc:
+        append_run_log(f"运行异常：{type(exc).__name__}: {exc}")
         with run_lock:
             run_state["returncode"] = -1
             run_state["error"] = f"{type(exc).__name__}: {exc}"
@@ -245,6 +272,34 @@ def run_main_task() -> None:
 
 def _json_error(message: str, status: int = 400):
     return jsonify({"ok": False, "error": message}), status
+
+
+def load_app_settings() -> dict:
+    """读取控制中心可编辑的全局采集设置。"""
+    with CONFIG_FILE.open("r", encoding="utf-8") as handle:
+        config = yaml.safe_load(handle) or {}
+    try:
+        top_n = int(config.get("top_n", 12))
+    except (TypeError, ValueError):
+        top_n = 12
+    return {"top_n": max(top_n, 1)}
+
+
+def save_app_settings(top_n: object) -> int:
+    """只更新 config.yaml 的 top_n，保留其余配置和注释。"""
+    try:
+        value = int(top_n)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("每日筛选新闻数必须是整数") from exc
+    if value < 1 or value > 100:
+        raise ValueError("每日筛选新闻数必须在 1 到 100 之间")
+
+    text = CONFIG_FILE.read_text(encoding="utf-8")
+    updated, count = re.subn(r"(?m)^top_n:\s*\d+\s*$", f"top_n: {value}", text, count=1)
+    if count != 1:
+        raise ValueError("config.yaml 中找不到 top_n 配置")
+    CONFIG_FILE.write_text(updated, encoding="utf-8")
+    return value
 
 
 def _jsonable_item(item: dict) -> dict:
@@ -303,7 +358,10 @@ def api_run():
         run_state["returncode"] = None
         run_state["error"] = ""
         run_state["logs"].clear()
-        run_state["logs"].append("开始运行 main.py ...")
+        run_state["run_id"] = None
+        run_state["log_file"] = None
+    start_run_log()
+    append_run_log("开始运行 main.py ...")
     threading.Thread(target=run_main_task, daemon=True).start()
     return jsonify({"ok": True, "state": snapshot_run_state()})
 
@@ -323,6 +381,26 @@ def api_sources():
         return _json_error(str(exc), 500)
     payload["ok"] = True
     return jsonify(payload)
+
+
+@app.get("/api/settings")
+def api_settings():
+    try:
+        return jsonify({"ok": True, **load_app_settings()})
+    except (OSError, yaml.YAMLError, TypeError, ValueError) as exc:
+        return _json_error(str(exc), 500)
+
+
+@app.put("/api/settings")
+def api_save_settings():
+    data = request.get_json(force=True) or {}
+    try:
+        top_n = save_app_settings(data.get("top_n"))
+    except ValueError as exc:
+        return _json_error(str(exc), 400)
+    except OSError as exc:
+        return _json_error(str(exc), 500)
+    return jsonify({"ok": True, "top_n": top_n})
 
 
 @app.put("/api/sources")

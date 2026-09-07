@@ -2,7 +2,7 @@
 <html lang="zh">
 <head>
 <meta charset="utf-8">
-<title>信息源设置 · AI 早报</title>
+<title>采集设置 · AI 早报</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg'><text y='.9em' font-size='90'>⚙️</text></svg>">
 <link rel="stylesheet" href="/static/style.css">
@@ -12,7 +12,7 @@
 <header>
   <a class="header-link" href="/">← 返回控制中心</a>
   <div class="settings-heading">
-    <h1>⚙ 信息源设置</h1>
+    <h1>⚙ 采集设置</h1>
     <span>统一管理 RSS、更新日志和官方公告页</span>
   </div>
   <span class="spacer"></span>
@@ -27,6 +27,11 @@
     <div>
       <strong id="sourceCount">正在读取信息源…</strong>
       <p>修改会先保存在页面中；点击“保存全部”后才写入配置。关闭的来源不会参与下一次采集。</p>
+    </div>
+    <div class="daily-limit-setting">
+      <label for="topN"><strong>最终草稿条数</strong><input id="topN" type="number" min="1" max="100" value="12"></label>
+      <button id="saveTopNBtn" type="button">保存数量</button>
+      <small>默认 12 条</small>
     </div>
     <label class="source-filter">
       <span>筛选</span>

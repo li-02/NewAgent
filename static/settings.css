@@ -12,6 +12,10 @@
 .settings-intro > div { flex: 1; }
 .settings-intro strong { font-size: 17px; }
 .settings-intro p { margin-top: 6px; color: var(--muted); font-size: 13px; }
+.daily-limit-setting { display: flex; align-items: end; gap: 8px; white-space: nowrap; }
+.daily-limit-setting label { display: grid; gap: 5px; }
+.daily-limit-setting input { width: 90px; }
+.daily-limit-setting small { color: var(--muted); padding-bottom: 8px; }
 .source-filter { width: min(320px, 40%); }
 .source-filter span, .source-form-grid label > span { display: block; margin-bottom: 6px; color: var(--muted); font-size: 12px; font-weight: 600; }
 .source-filter input, .source-form-grid input, .source-form-grid select { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--panel); color: var(--text); font: inherit; outline: none; }

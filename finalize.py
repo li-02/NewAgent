@@ -11,8 +11,8 @@ Web 端（webui.py）复用 parse_draft_text / build_final 完成同样的装配
 - 终稿按选定顺序重新编号 #1..#N；概览可选，默认不导出；
 - 正文条目不带链接块（草稿里保留链接块是为了截图时对照原文），
   所有信息源统一放到文末「🔗 信息源」小节；
-- 已含图片（用户手动插入的 ![[ ]] 或 ![]()）的条目跳过占位符，
-  其余条目在正文末尾重建截图占位符。
+- 已含图片（用户手动插入的 ![[ ]] 或 ![]()）的条目保留图片；
+  未粘贴图片的条目在终稿中不输出空白图片占位符。
 """
 from __future__ import annotations
 
@@ -244,7 +244,8 @@ def build_final(
         rebuilt.append({
             "no": new_no, "old_no": old_no, "title": title, "cat": cat,
             "lines": body, "links": links, "has_img": img,
-            "shot": "" if img else f"assets/{date_str}/{new_no:02d}-{slugify(title)}.jpg",
+            # 草稿中的空图片槽位只服务于审核界面，终稿不输出不存在的图片链接。
+            "shot": "",
         })
 
     if include_overview:
@@ -258,14 +259,6 @@ def build_final(
     for r in rebuilt:
         out_lines += [f"## {r['title']} `#{r['no']}`", ""]
         out_lines += r["lines"]
-        if r["shot"]:
-            desc = r["title"][:50]
-            out_lines += [
-                "",
-                f"<!-- 📷 截图占位 | {desc}",
-                f"     操作：打开原文链接，截取页面首屏，保存为 output/{date_str}/{r['shot']}，刷新预览即可看到图片 -->",
-                f"![待补充截图：{desc}]({r['shot']})",
-            ]
         out_lines += ["", "---", ""]
 
     if include_sources:

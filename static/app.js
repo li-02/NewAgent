@@ -538,6 +538,7 @@ function renderRunState(st) {
   const btn = $("#runBtn");
   const log = $("#runLog");
   const logToggle = $("#toggleLogBtn");
+  const copyLogBtn = $("#copyRunLogBtn");
   btn.disabled = !!st.running;
   btn.textContent = st.running ? "运行中…" : "▶ 采集/成稿";
   const lines = st.logs || [];
@@ -545,6 +546,7 @@ function renderRunState(st) {
   const hasLogs = st.running || lines.length > 0;
   log.hidden = !hasLogs || !runLogVisible;
   logToggle.hidden = !hasLogs;
+  copyLogBtn.hidden = !hasLogs;
   logToggle.textContent = runLogVisible ? "关闭运行日志" : "查看运行日志";
   logToggle.setAttribute("aria-expanded", String(runLogVisible));
   log.textContent = lines.join("\n");
@@ -575,6 +577,29 @@ $("#toggleLogBtn").addEventListener("click", () => {
   btn.textContent = runLogVisible ? "关闭运行日志" : "查看运行日志";
   btn.setAttribute("aria-expanded", String(runLogVisible));
   if (runLogVisible) log.scrollTop = log.scrollHeight;
+});
+
+$("#copyRunLogBtn").addEventListener("click", async () => {
+  const text = $("#runLog").textContent || "";
+  if (!text.trim()) return;
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      const input = document.createElement("textarea");
+      input.value = text;
+      input.setAttribute("readonly", "");
+      input.style.position = "fixed";
+      input.style.opacity = "0";
+      document.body.appendChild(input);
+      input.select();
+      if (!document.execCommand("copy")) throw new Error("浏览器拒绝了复制操作");
+      input.remove();
+    }
+    status("✅ 运行日志已复制");
+  } catch (err) {
+    status(`复制日志失败：${err.message}`, true);
+  }
 });
 
 async function pollRunState() {

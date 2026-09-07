@@ -236,6 +236,32 @@ async function loadSources() {
   }
 }
 
+async function loadAppSettings() {
+  try {
+    const payload = await requestJson("/api/settings");
+    $("#topN").value = payload.top_n ?? 12;
+  } catch (error) {
+    setState(`读取筛选设置失败：${error.message}`, true);
+  }
+}
+
+async function saveTopN() {
+  const button = $("#saveTopNBtn");
+  button.disabled = true;
+  try {
+    const payload = await requestJson("/api/settings", {
+      method: "PUT",
+      body: { top_n: Number($("#topN").value) },
+    });
+    $("#topN").value = payload.top_n;
+    setState(`已保存最终草稿条数：${payload.top_n}`);
+  } catch (error) {
+    setState(`保存筛选设置失败：${error.message}`, true);
+  } finally {
+    button.disabled = false;
+  }
+}
+
 async function saveSources() {
   const button = $("#saveSourcesBtn");
   button.disabled = true;
@@ -276,6 +302,7 @@ $("#sourceFilter").addEventListener("input", renderSources);
 $("#closeSourceDialog").addEventListener("click", () => $("#sourceDialog").close());
 $("#cancelSourceBtn").addEventListener("click", () => $("#sourceDialog").close());
 $("#testSourceBtn").addEventListener("click", () => testSource(sourceFromForm(), $("#testSourceBtn"), $("#testResult")));
+$("#saveTopNBtn").addEventListener("click", saveTopN);
 window.addEventListener("beforeunload", (event) => {
   if (!dirty) return;
   event.preventDefault();
@@ -283,3 +310,4 @@ window.addEventListener("beforeunload", (event) => {
 });
 
 loadSources();
+loadAppSettings();

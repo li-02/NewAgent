@@ -110,7 +110,7 @@ DEMO_ITEMS = [
 def main() -> int:
     ap = argparse.ArgumentParser(description="AI 每日资讯生成器")
     ap.add_argument("--hours", type=int, default=None, help="时间窗口（小时），默认读配置")
-    ap.add_argument("--top", type=int, default=None, help="入选条数上限，默认读配置")
+    ap.add_argument("--top", type=int, default=None, help="最终草稿条数上限，默认读配置")
     ap.add_argument("--limit", type=int, default=30, help="每个源最多抓取条数")
     ap.add_argument("--no-llm", action="store_true", help="强制使用列表版，不调用 LLM")
     ap.add_argument("--demo", action="store_true", help="用内置示例数据预览成稿格式")
@@ -125,7 +125,7 @@ def main() -> int:
 
     if args.demo:
         print("[demo] 使用内置示例数据生成预览稿")
-        items = DEMO_ITEMS
+        items = rank(DEMO_ITEMS)[:top_n]
         assign_screenshot_paths(items, date_str, int(cfg.get("screenshot_count", 5)))
         llm = resolve_llm(cfg.get("llm", {}), disabled=args.no_llm)
         body = generate_digest(items, date_str, llm)

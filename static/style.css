@@ -71,6 +71,7 @@ aside { border-right: 1px solid var(--line); background: var(--panel); overflow-
 #status.ok { color: #1a7f37; font-weight: 600; }
 #status.err { color: #cf222e; font-weight: 600; }
 .log-toggle { flex: 0 0 auto; padding: 3px 9px; color: var(--muted); font-size: 12px; }
+.log-toggle + .log-toggle { margin-left: 4px; }
 .log-toggle:hover { color: var(--accent); }
 #runLog { grid-column: 2; grid-row: 3; max-height: 170px; overflow: auto; padding: 10px 16px; border-top: 1px solid var(--line); background: #0d1117; color: #d1d7e0; font-size: 12px; line-height: 1.5; white-space: pre-wrap; }
 
