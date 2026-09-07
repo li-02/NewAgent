@@ -13,23 +13,6 @@ def render_digest(items: list[dict], date_str: str, body: str, stats: dict) -> s
     ]
     header.append("")
 
-    shots = [it for it in items if it.get("screenshot_path")]
-    if shots:
-        header += [
-            "## ✅ 审核清单（补充完截图后可删除本节）",
-            "",
-            "操作：打开「原文」链接 → 截取页面首屏 → 保存为对应路径（相对本目录），"
-            "保存后图片会自动显示在正文对应位置。",
-            "",
-            "| # | 需要的截图 | 原文 | 保存路径 |",
-            "|---|------------|------|----------|",
-        ]
-        for i, it in enumerate(shots, 1):
-            title = it.get("display_title") or it["title"]
-            title = title[:40] + ("…" if len(title) > 40 else "")
-            header.append(f"| {i} | {title} | [打开]({it['url']}) | `{it['screenshot_path']}` |")
-        header.append("")
-
     src_counts: dict[str, int] = {}
     for it in items:
         for s, _ in it.get("sources", [(it["source"], it["url"])]):

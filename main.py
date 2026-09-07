@@ -14,6 +14,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import yaml
+from dotenv import load_dotenv
 
 from src.db import DB
 from src.fetchers import run_source
@@ -26,9 +27,11 @@ from src.pipeline.generate import (
     resolve_llm,
 )
 from src.pipeline.rank import rank
+from src.pipeline.observe import observe, event_time
 from src.outputs.markdown import render_digest, write_digest
 
 ROOT = Path(__file__).parent
+load_dotenv(ROOT / ".env")
 
 
 def load_yaml(path: Path) -> dict:
@@ -144,22 +147,31 @@ def main() -> int:
 
     print("[2/6] 时间过滤 + 去重")
     cutoff = datetime.now(timezone.utc) - timedelta(hours=window)
-    windowed = [it for it in fetched if it.get("published") is None or it["published"] >= cutoff]
     db = DB(ROOT / cfg["db_path"])
-    candidates = windowed or fetched
+    fetched_count = len(fetched)
+    fetched = observe(fetched, db)
+    if len(fetched) < fetched_count:
+        print(f"       {fetched_count - len(fetched)} 个无日期页面已建立基线，暂无新变更")
+    # 有证据的首次观察时间单独标注；普通无日期条目仍排除。
+    windowed = [
+        it
+        for it in fetched
+        if event_time(it) is not None and cutoff <= event_time(it) <= datetime.now(timezone.utc)
+    ]
+    candidates = windowed
     known = db.known_hashes([url_hash(it["url"]) for it in candidates])
     items = dedup(candidates, known)
     if not items and candidates:
         # 去重只用于避免重复入库，不能阻止用户手动生成当天快照。
         items = dedup(candidates, set())
         print("       本次条目均已收录，仍生成当天快照（不覆盖历史文件）")
-    print(f"       抓到 {len(fetched)} 条 → 窗口内 {len(windowed)} 条 → 本稿 {len(items)} 条")
+    print(f"       抓到 {fetched_count} 条 → 窗口内 {len(windowed)} 条 → 本稿 {len(items)} 条")
     merged = merge_changelog_updates(items)
     if len(merged) != len(items):
         print(f"       同工具多版本合并：{len(items)} → {len(merged)} 条")
     items = merged
     if not items:
-        print("没有可生成的内容")
+        print(f"最近 {window} 小时内没有可生成的新内容，未生成稿件")
         db.close()
         return 0
 
@@ -182,7 +194,7 @@ def main() -> int:
     assign_screenshot_paths(items, date_str, int(cfg.get("screenshot_count", 5)))
     body = generate_digest(items, date_str, llm)
     stats = {
-        "fetched": len(fetched),
+        "fetched": fetched_count,
         "kept": len(items),
         "source_count": len({it["source"] for it in fetched}),
     }
@@ -199,8 +211,7 @@ def main() -> int:
     shots = [it for it in items if it.get("screenshot_path")]
     print(f"\n完成：{path}")
     if shots:
-        print(f"审核提示：{len(shots)} 条需要手动补充官方页面截图（见稿首「审核清单」）。")
-        print("把截图保存到 output/ 下对应路径后，重新打开 Markdown 即可看到图片。")
+        print(f"截图提示：{len(shots)} 条可在控制中心的「资讯截图存放区」补充截图。")
     return 0
 
 

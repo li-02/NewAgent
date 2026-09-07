@@ -22,11 +22,22 @@ class FinalizeTests(unittest.TestCase):
 
         result, _ = build_final(overview, blocks, [1], "2026-08-31")
 
-        self.assertTrue(result.startswith("# 今日资讯 | AI日报0831\n\n## 概览"))
+        self.assertTrue(result.startswith("# 今日资讯 | AI日报0831\n\n## 测试资讯"))
+        self.assertNotIn("## 概览", result)
         self.assertNotIn("生成时间", result)
         self.assertNotIn("审核清单", result)
         self.assertNotIn("需要的截图", result)
         self.assertNotIn("## 🔗 信息源", result)
+
+    def test_final_includes_overview_only_when_requested(self) -> None:
+        overview = {1: {"ov_title": "测试资讯", "category": "要闻"}}
+        blocks = {1: ["## 测试资讯 `#1`", "", "正文"]}
+
+        result, _ = build_final(
+            overview, blocks, [1], "2026-09-01", include_overview=True
+        )
+
+        self.assertIn("## 概览", result)
 
     def test_final_uses_custom_single_line_title(self) -> None:
         overview = {1: {"ov_title": "测试资讯", "category": "要闻"}}

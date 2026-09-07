@@ -16,6 +16,7 @@
   <a class="header-link" href="/settings">⚙ 信息源</a>
   <button id="runBtn">▶ 采集/成稿</button>
   <button id="syncBtn" class="primary">🔄 同步滚动：开</button>
+  <button id="toggleEditorBtn" title="展开或隐藏 Markdown 编辑区">✏ 展开编辑区</button>
   <button id="refreshBtn" title="重新读取当前日期的草稿并刷新预览">🔃 刷新</button>
   <button id="saveBtn">💾 保存 (Ctrl+S)</button>
   <button id="exportBtn" class="primary">📤 导出终稿</button>
@@ -39,7 +40,7 @@
     <div id="navBar" title="条目导航：点击跳转到对应条目"></div>
     <section id="imageShelf" aria-label="资讯截图存放区"></section>
     <div id="panes">
-      <textarea id="editor" spellcheck="false"
+      <textarea id="editor" hidden spellcheck="false"
         placeholder="草稿加载中…（若为空：先运行 run.bat 生成当日草稿）"></textarea>
       <div id="preview" class="md"></div>
     </div>
@@ -68,6 +69,10 @@
     <label class="export-source-option" for="includeSources">
       <input id="includeSources" type="checkbox">
       <span><strong>导出信息源</strong><small>勾选后在终稿末尾附带原文链接，默认不导出。</small></span>
+    </label>
+    <label class="export-source-option" for="includeOverview">
+      <input id="includeOverview" type="checkbox">
+      <span><strong>导出概览</strong><small>勾选后在终稿开头附带概览，默认不导出。</small></span>
     </label>
     <div id="exportPreviewList" class="export-preview-list"></div>
     <div class="export-dialog-foot">

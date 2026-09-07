@@ -101,3 +101,163 @@ sources:
     url: https://api-docs.deepseek.com/updates/
     weight: 3
     category: dev
+
+  # 官方产品与研究发布；产品博客不能由研究博客替代。
+  - name: Google 产品博客
+    type: rss
+    url: https://blog.google/rss/
+    require_ai: true
+    weight: 3
+
+  - name: Microsoft AI
+    type: article_index
+    url: https://microsoft.ai/news/
+    link_pattern: '^https://microsoft\.ai/news/[^/?]+/?$'
+    weight: 3
+
+  - name: Microsoft Foundry
+    type: rss
+    url: https://techcommunity.microsoft.com/t5/s/gxcuf89792/rss/board?board.id=azure-ai-foundry-blog
+    weight: 3
+
+  - name: Meta AI Research
+    type: article_index
+    url: https://research.meta.ai/blog/
+    link_pattern: '^https://research\.meta\.ai/blog/[^/?]+/?$'
+    weight: 3
+
+  # 首次抓取只建立正文基线，之后的变化使用“首次检测时间”。
+  - name: OpenAI 模型与额度说明
+    type: page_watch
+    url: https://help.openai.com/en/articles/20001354
+    category: product
+    weight: 3
+
+  - name: OpenAI Business 模型与额度
+    type: page_watch
+    url: https://help.openai.com/en/articles/12003714-chatgpt-team-models-limits
+    category: product
+    weight: 3
+
+  - name: OpenAI Work 与 Codex 额度
+    type: page_watch
+    url: https://help.openai.com/en/articles/20001275
+    category: product
+    weight: 3
+
+  - name: Codex 桌面端更新
+    type: page_watch
+    url: https://developers.openai.com/codex/changelog/
+    category: dev
+    weight: 3
+
+  - name: Codex GitHub Releases
+    type: rss
+    url: https://github.com/openai/codex/releases.atom
+    category: dev
+    weight: 3
+
+  - name: Claude Max 额度说明
+    type: page_watch
+    url: https://support.claude.com/en/articles/11049741-what-is-the-max-plan
+    category: product
+    weight: 3
+
+  - name: OpenCode Go 模型与额度
+    type: page_watch
+    url: https://opencode.ai/docs/go/
+    category: dev
+    weight: 3
+
+  - name: OpenCode Releases
+    type: rss
+    url: https://github.com/anomalyco/opencode/releases.atom
+    category: dev
+    weight: 3
+
+  - name: Qoder 千问夜间优惠
+    type: page_watch
+    url: https://docs.qoder.cn/en/product-overview/qwen-3-7-series-model-staggering-discount
+    category: dev
+    weight: 3
+
+  - name: 百灵开发者文档
+    type: page_watch
+    url: https://developer.ant-ling.com/zh-CN/docs/
+    weight: 3
+
+  - name: 百灵多模态文档
+    type: page_watch
+    url: https://developer.ant-ling.com/zh-CN/docs/tutorials/multimodal-understanding/
+    weight: 3
+
+  - name: inclusionAI Hugging Face
+    type: huggingface
+    url: https://huggingface.co/inclusionAI
+    category: paper
+    weight: 3
+
+  - name: inclusionAI GitHub
+    type: github_org
+    url: https://github.com/inclusionAI
+    category: paper
+    weight: 3
+
+  - name: inclusionAI 模型服务目录
+    type: model_catalog
+    url: https://openrouter.ai/api/v1/models
+    code: inclusionai/
+    weight: 2
+
+  # 社区消息是线索，成稿保留用户报告口径，不视为官方确认。
+  - name: Reddit ClaudeAI
+    type: rss
+    url: https://www.reddit.com/r/ClaudeAI/new/.rss
+    category: community
+    weight: 1
+    enabled: false
+
+  - name: Reddit LocalLLaMA
+    type: rss
+    url: https://www.reddit.com/r/LocalLLaMA/new/.rss
+    category: community
+    weight: 1
+    enabled: false
+
+  - name: Reddit OpenCode
+    type: rss
+    url: https://www.reddit.com/r/opencode/new/.rss
+    category: community
+    weight: 1
+    enabled: false
+
+  # 配置 X_BEARER_TOKEN 且账号具有用户时间线 API 权限后，在设置中启用。
+  - name: OpenAI 官方 X
+    type: x_account
+    url: https://x.com/OpenAI
+    enabled: false
+    weight: 3
+
+  - name: Claude 官方 X
+    type: x_account
+    url: https://x.com/claudeai
+    enabled: false
+    weight: 3
+
+  - name: Google DeepMind 官方 X
+    type: x_account
+    url: https://x.com/GoogleDeepMind
+    enabled: false
+    weight: 3
+
+  - name: Meta AI 官方 X
+    type: x_account
+    url: https://x.com/AIatMeta
+    enabled: false
+    weight: 3
+
+  - name: 百灵官方 X
+    type: x_account
+    url: https://x.com/AntLingAGI
+    enabled: false
+    weight: 3

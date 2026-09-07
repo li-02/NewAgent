@@ -73,6 +73,28 @@ class WebUiTests(unittest.TestCase):
         self.assertNotIn(f"# AI 早报 {date}", payload["content"])
         self.assertTrue(payload["content"].startswith("> 生成时间：测试"))
 
+    def test_state_hides_legacy_audit_checklist_from_editor_and_preview_source(self) -> None:
+        date = "2026-09-01"
+        date_dir = self.output / date
+        date_dir.mkdir(parents=True)
+        (date_dir / f"AI早报-{date}.md").write_text(
+            "> 生成时间：测试\n\n"
+            "## ✅ 审核清单（补充完截图后可删除本节）\n\n"
+            "操作说明\n\n"
+            "| # | 需要的截图 | 原文 | 保存路径 |\n"
+            "|---|---|---|---|\n"
+            "| 1 | 测试 | [打开](https://example.com) | `assets/test.jpg` |\n"
+            "---\n\n"
+            "## 概览\n",
+            encoding="utf-8",
+        )
+
+        payload = self.client.get(f"/api/state?date={date}").get_json()
+
+        self.assertNotIn("审核清单", payload["content"])
+        self.assertNotIn("需要的截图", payload["content"])
+        self.assertIn("## 概览", payload["content"])
+
     def test_final_endpoint_returns_latest_final(self) -> None:
         date = "2026-08-31"
         date_dir = self.output / date

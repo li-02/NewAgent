@@ -8,7 +8,7 @@ from urllib.parse import urlparse
 
 import yaml
 
-SOURCE_TYPES = ("rss", "hackernews", "changelog", "html_updates")
+SOURCE_TYPES = ("rss", "hackernews", "changelog", "html_updates", "page_watch", "article_index", "huggingface", "github_org", "x_account", "model_catalog")
 CATEGORIES = ("news", "paper", "community", "dev", "product")
 URL_FIELDS = ("url", "api_url", "link_base")
 ALLOWED_FIELDS = {
@@ -26,9 +26,13 @@ ALLOWED_FIELDS = {
     "require_ai",
     "weight",
     "category",
+    "content_xpath",
+    "link_pattern",
 }
 
 FIELD_META = [
+    {"name": "content_xpath", "label": "正文 XPath", "kind": "text"},
+    {"name": "link_pattern", "label": "文章链接正则", "kind": "text"},
     {"name": "name", "label": "名称", "kind": "text", "required": True},
     {"name": "type", "label": "类型", "kind": "select", "required": True, "options": list(SOURCE_TYPES)},
     {"name": "enabled", "label": "启用", "kind": "boolean", "default": True},
@@ -121,12 +125,26 @@ def normalize_source(source: object, idx: int = 0) -> dict:
     if "category" in normalized and normalized["category"] not in CATEGORIES:
         raise SourceConfigError(f"{name} 的 category 不支持: {normalized['category']}")
 
-    if source_type in {"rss", "changelog", "html_updates"} and not normalized.get("url"):
+    if source_type != "hackernews" and not normalized.get("url"):
         raise SourceConfigError(f"{name} 缺少 url")
     for field in URL_FIELDS:
         if field in normalized:
             normalized[field] = _validate_url(str(normalized[field]).strip(), f"{name} 的 {field}")
 
+    if source_type == "article_index":
+        if not normalized.get("link_pattern"):
+            raise SourceConfigError(f"{name} 缺少 link_pattern")
+        import re
+        try:
+            re.compile(normalized["link_pattern"])
+        except (re.error, TypeError) as exc:
+            raise SourceConfigError(f"{name} 链接匹配规则无效") from exc
+    if normalized.get("content_xpath"):
+        from lxml.etree import XPath, XPathSyntaxError
+        try:
+            XPath(normalized["content_xpath"])
+        except (XPathSyntaxError, TypeError) as exc:
+            raise SourceConfigError(f"{name} 正文 XPath 无效") from exc
     if "item_limit" in normalized:
         normalized["item_limit"] = _to_int(normalized["item_limit"], f"{name} 的 item_limit", minimum=1)
     if "min_score" in normalized:

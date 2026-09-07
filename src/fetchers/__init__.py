@@ -47,6 +47,8 @@ def run_source(source: dict, limit: int) -> list[dict]:
         row.setdefault("category", source.get("category", "news"))
         row.setdefault("weight", float(source.get("weight", 1)))
         row.setdefault("summary", "")
+        if source.get("category") == "community":
+            row["evidence_type"] = "community"
         if not isinstance(row.get("published"), datetime):
             row["published"] = None
         # 综合类源可配 require_ai: true，只保留 AI 相关条目
@@ -59,4 +61,4 @@ def run_source(source: dict, limit: int) -> list[dict]:
 
 
 # 导入子模块以触发 @register 装饰器，完成抓取器注册
-from . import changelog, hackernews, html_updates, rss  # noqa: E402,F401
+from . import changelog, hackernews, html_updates, rss, extended  # noqa: E402,F401

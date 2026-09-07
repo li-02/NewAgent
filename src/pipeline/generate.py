@@ -41,6 +41,7 @@ SYSTEM_PROMPT = """你是一名专业、严谨的科技新闻资讯编辑与报�
 1. 对公司公告、个人声明等内容，应使用“该公司表示”“公告显示”等准确归因，不把相关方自述冒充独立事实。
 2. 直接引语必须忠实于原文；间接转述不得改变原意。
 3. 是否在成稿中显示来源名称和链接，遵循用户给出的输出格式；即使格式隐藏来源，也不得改变信息的事实属性或确定程度。
+4. 输入中的媒体名称、站点名称、文章标题、点赞/得分、评论数、阅读量和“获得关注”等信息是采集元数据，不能写成新闻事件本身。禁止使用“据某媒体报道”“该发现已在某站获得……分”“讨论数达……”等报道报道的表述；应直接陈述被报道的公司、产品、项目或事件。如果素材只有这类元数据而没有事件事实，则不要把元数据扩写成新闻内容。
 
 输出前自检：标题是否越过证据边界；人名、机构、时间、地点和数字是否准确；是否把推测写成事实；是否遗漏重要不确定性；是否加入材料之外的信息。真实性、来源透明度和禁止虚构的原则优先于其他写作要求。"""
 
@@ -48,7 +49,9 @@ USER_PROMPT = """请基于以下素材，为每一条素材各写一个条目，
 
 报道方式：
 - 以事件中的相关公司、产品或人物为主要叙事主体，不要使用“素材中”“文章提到”等描述输入过程的措辞。
+- 直接报道事件本身，不报道这条消息在 Hacker News、Reddit 或其他平台的得分、评论数、阅读量、传播热度，也不要写“该发现引发社区关注”等元叙事。
 - 对材料呈现为已确认的事件事实直接、客观地陈述；对公告、声明、预测、主张和尚未核实的信息保留必要归因和审慎措辞。
+- 不要添加“社区用户报告”“尚未获官方确认”等通用免责声明。需要体现不确定性时，应明确写出具体陈述主体和具体主张。
 - 禁止在标题、TLDR、正文里出现任何媒体的名字（如量子位、TechCrunch、The Verge 等），
   来源标注由系统自动附在文末。
   （例外：如果新闻本身就是关于某篇文章/某个人的，按事实陈述该文章/人物的观点。）
@@ -103,13 +106,15 @@ def _desc(item: dict, limit: int = 60) -> str:
 
 
 def build_material(items: list[dict]) -> str:
-    """喂给 LLM 的素材：不携带媒体署名（来源名/其他报道不放进来），
-    让 LLM 把第三方报道的内容当作第一手信息直接报道事件本身；
-    链接只用于回填 ===ITEM=== 的 URL 字段。"""
+    """提供来源、证据性质及时间口径，保留社区消息和文档变更的不确定性。"""
     blocks = []
     for i, it in enumerate(items, 1):
         pub = it["published"].strftime("%Y-%m-%d %H:%M UTC") if it.get("published") else "未知"
+        observed = it.get("observed_at")
+        provenance = "用户生成内容；只转述具体主体的具体主张，不添加通用免责声明，不得扩写为全体用户或官方公告。" if it.get("evidence_type") == "community" else "按原文限定表述。"
+        observation = f"首次检测时间：{observed.isoformat()}（不代表发布时间）；仅描述所附差异。\n" if observed else ""
         blocks.append(
+            f"来源：{it['source']}；{provenance}\n{observation}"
             f"[{i}] 参考标题：{it['title']}\n"
             f"链接：{it['url']}\n"
             f"发布时间：{pub}\n"
@@ -169,10 +174,30 @@ def parse_llm_items(text: str) -> list[dict]:
                 "url": url,
                 "title": title,
                 "category": cat if cat in CATEGORIES else "要闻",
-                "tldr": re.sub(r"\s*\n\s*", " ", tldr),
-                "body": "\n".join(body_lines).strip(),
+                "tldr": clean_meta_reporting(re.sub(r"\s*\n\s*", " ", tldr)),
+                "body": clean_meta_reporting("\n".join(body_lines).strip()),
             })
     return parsed
+
+
+META_REPORTING_RE = re.compile(
+    r"[^。！？!?；;\n]*(?:获得|收获|拿到|取得)\s*`?\d[\d,]*`?\s*(?:分|票|个赞|点赞|热度)[^。！？!?；;\n]*"
+    r"(?:[，,]\s*[^。！？!?；;\n]*(?:讨论数|评论数|讨论量|阅读量)[^。！？!?；;\n]*(?:达|为|有)\s*`?\d[\d,]*`?)?"
+    r"[。！？!?；;]?",
+    re.I,
+)
+META_PLATFORM_RE = re.compile(
+    r"[^。！？!?；;\n]*(?:在|于)\s*(?:Hacker\s*News|Reddit|Product\s*Hunt)[^。！？!?；;\n]*"
+    r"(?:得分|分数|讨论数|评论数|阅读量|热度|引发社区关注)[^。！？!?；;\n]*[。！？!?；;]?",
+    re.I,
+)
+
+
+def clean_meta_reporting(text: str) -> str:
+    """删除把来源平台热度/讨论量当成新闻事实的句子。"""
+    cleaned = META_REPORTING_RE.sub("", text)
+    cleaned = META_PLATFORM_RE.sub("", cleaned)
+    return re.sub(r"[ \t]{2,}", " ", cleaned).strip()
 
 
 def merge_changelog_updates(items: list[dict]) -> list[dict]:
@@ -213,8 +238,10 @@ def assemble_digest(parsed: list[dict], items: list[dict], date_str: str) -> str
         title = (p["title"] if p and p["title"] else it["title"])
         it["display_title"] = title
         category = p["category"] if p else CATEGORY_FALLBACK.get(it.get("category", "news"), "要闻")
-        tldr = p["tldr"] if p else (it.get("summary") or "")[:150]
-        body = p["body"] if p else (it.get("text") or it.get("summary") or "")[:400]
+        tldr = p["tldr"] if p else clean_meta_reporting((it.get("summary") or "")[:150])
+        body = p["body"] if p else clean_meta_reporting((it.get("text") or it.get("summary") or "")[:400])
+        if it.get("observed_at"):
+            body = f"首次检测：{it['observed_at']:%Y-%m-%d %H:%M UTC}；原始发布时间未知。\n\n" + body
         links = [u for _, u in it.get("sources", [(it["source"], it["url"])])]
         entries.append({
             "title": title,

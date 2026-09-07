@@ -69,18 +69,20 @@ def fetch_html_updates(source: dict, limit: int) -> list[dict]:
 
 
 def _request_text(url: str) -> str:
-    try:
-        resp = httpx.get(url, timeout=30, headers=UA, follow_redirects=True)
-    except httpx.TransportError as exc:
-        if not _is_ssl_proxy_error(exc):
-            raise
-        with httpx.Client(
-            timeout=30,
-            headers=UA,
-            follow_redirects=True,
-            trust_env=False,
-        ) as client:
-            resp = client.get(url)
+    # One bounded retry for transient connection resets. Keep TLS verification on.
+    for attempt in range(2):
+        try:
+            try:
+                resp = httpx.get(url, timeout=20, headers=UA, follow_redirects=True)
+            except httpx.TransportError as exc:
+                if not _is_ssl_proxy_error(exc):
+                    raise
+                with httpx.Client(timeout=20, headers=UA, follow_redirects=True, trust_env=False) as client:
+                    resp = client.get(url)
+            break
+        except httpx.TransportError:
+            if attempt:
+                raise
 
     if resp.status_code in {401, 403, 429}:
         raise RuntimeError(f"可能被反爬或限流拦截: HTTP {resp.status_code}")

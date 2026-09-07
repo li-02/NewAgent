@@ -9,6 +9,14 @@ let runWasActive = false;
 let exportOrder = [];
 let runLogVisible = false;
 
+// 编辑区不显示条目编号；编号仍由解析器按条目顺序保留，用于导航和导出。
+function stripTitleNumbers(text) {
+  return String(text || "").replace(
+    /^(\s*(?:##|-)\s*.+?)\s+(?:`#\d+`|#\d+)\s*$/gm,
+    "$1"
+  );
+}
+
 async function api(path, body) {
   const opt = body
     ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }
@@ -159,7 +167,7 @@ async function pasteItemImage(event, no) {
     const data = await fileToDataUrl(found.getAsFile());
     const r = await api("/api/item-image", { date, no, data });
     if (!r.ok) { status(r.error || "截图保存失败", true); return; }
-    $("#editor").value = r.content;
+    $("#editor").value = stripTitleNumbers(r.content);
     items = r.items || items;
     renderItems();
     renderPreview();
@@ -188,10 +196,12 @@ function renderNav() {
 function jumpToItem(no) {
   const ta = $("#editor");
   const lines = ta.value.split("\n");
-  const re = new RegExp("^## .*`#" + no + "`\\s*$");
+  const item = items.find((it) => it.no === no);
+  const title = item?.title || "";
   let lineIdx = -1;
   for (let i = 0; i < lines.length; i++) {
-    if (re.test(lines[i])) { lineIdx = i; break; }
+    const match = lines[i].match(/^## (.+?)(?:\s+`#\d+`|\s+#\d+)?\s*$/);
+    if (match && match[1].trim() === title) { lineIdx = i; break; }
   }
   if (lineIdx < 0) { status(`草稿里没找到条目 #${no} 的标题行（可能已被改掉）`, true); return; }
 
@@ -206,12 +216,80 @@ function jumpToItem(no) {
   syncTimer = setTimeout(() => { syncSource = null; }, 300);
 
   const target = [...$("#preview").querySelectorAll("h2")]
-    .find((h) => h.textContent.trim().endsWith("#" + no));
+    .find((h) => h.textContent.trim().replace(/\s+#\d+$/, "") === (items.find((it) => it.no === no)?.title || ""));
   if (target) target.scrollIntoView({ block: "start", behavior: "smooth" });
 }
 
+function isCopyableUrl(value) {
+  return /^https?:\/\//i.test(String(value || "").trim());
+}
+
+async function copyLink(value, button) {
+  const text = String(value || "").trim();
+  if (!text) return;
+  const defaultLabel = button.dataset.defaultLabel || button.textContent;
+  button.dataset.defaultLabel = defaultLabel;
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      const input = document.createElement("textarea");
+      input.value = text;
+      input.setAttribute("readonly", "");
+      input.style.position = "fixed";
+      input.style.opacity = "0";
+      document.body.appendChild(input);
+      input.select();
+      if (!document.execCommand("copy")) throw new Error("浏览器拒绝了复制操作");
+      input.remove();
+    }
+    button.textContent = "已复制";
+    button.classList.add("copied");
+    status("✅ 链接已复制");
+    setTimeout(() => {
+      button.textContent = defaultLabel;
+      button.classList.remove("copied");
+    }, 1600);
+  } catch (err) {
+    status(`复制失败：${err.message}`, true);
+  }
+}
+
+function addLinkCopyButtons(container) {
+  // 文章里的原文链接通常位于 fenced code block；整块复制可兼容多链接场景。
+  container.querySelectorAll("pre").forEach((pre) => {
+    const text = pre.textContent.trim();
+    const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    if (!lines.length || !lines.every(isCopyableUrl)) return;
+    const wrap = document.createElement("div");
+    wrap.className = "link-copy-wrap";
+    pre.parentNode.insertBefore(wrap, pre);
+    wrap.appendChild(pre);
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "link-copy-btn";
+    button.textContent = lines.length === 1 ? "复制链接" : "复制全部链接";
+    button.title = lines.length === 1 ? "复制原文链接" : "复制代码块中的全部原文链接";
+    button.addEventListener("click", () => copyLink(lines.join("\n"), button));
+    wrap.appendChild(button);
+  });
+
+  // 同时支持正文中使用 Markdown [文字](URL) 写出的链接。
+  container.querySelectorAll("a[href]").forEach((link) => {
+    const url = link.href;
+    if (!isCopyableUrl(url) || link.nextElementSibling?.classList.contains("inline-link-copy")) return;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "inline-link-copy";
+    button.textContent = "复制";
+    button.title = "复制链接";
+    button.addEventListener("click", () => copyLink(url, button));
+    link.insertAdjacentElement("afterend", button);
+  });
+}
+
 function renderPreview() {
-  const src = $("#editor").value;
+  const src = stripTitleNumbers($("#editor").value);
   let html;
   try {
     html = marked.parse(src);
@@ -225,6 +303,7 @@ function renderPreview() {
   // 相对路径资源（assets/...）指向 output/{date}/ 下的静态服务
   html = html.replace(/(src|href)="(?!https?:|data:|\/|#)([^"]+)"/g, (m, a, p) => `${a}="${resolveOutputAsset(p)}"`);
   $("#preview").innerHTML = html;
+  addLinkCopyButtons($("#preview"));
   // 预览里加载失败的图片（尚未补的占位图）替换成明确的提示框，而不是破图
   $("#preview").querySelectorAll("img").forEach((img) => {
     img.addEventListener("error", () => {
@@ -308,6 +387,7 @@ function openExportPreview() {
   const titleInput = $("#exportTitle");
   titleInput.value = defaultExportTitle(date);
   $("#includeSources").checked = false;
+  $("#includeOverview").checked = false;
   $("#exportPreview").hidden = false;
   titleInput.focus();
   titleInput.setSelectionRange(0, "今日资讯".length);
@@ -318,13 +398,15 @@ async function confirmExport() {
   const orderedPicks = exportOrder.map((it) => it.no);
   const title = $("#exportTitle").value.trim();
   const includeSources = $("#includeSources").checked;
+  const includeOverview = $("#includeOverview").checked;
   const btn = $("#confirmExportBtn");
   btn.disabled = true;
   btn.textContent = "导出中…";
   status("导出中…");
   try {
     const r = await api("/api/export", {
-      date, picks: orderedPicks, title, include_sources: includeSources,
+      date, picks: orderedPicks, title,
+      include_sources: includeSources, include_overview: includeOverview,
     });
     if (!r.ok) { status(r.error || "导出失败", true); return; }
     closeExportPreview();
@@ -343,7 +425,7 @@ async function loadState(d) {
   const st = await api("/api/state" + (d ? `?date=${encodeURIComponent(d)}` : ""));
   date = st.date;
   renderDateOptions(st.dates, date, !!st.content);
-  $("#editor").value = st.content;
+  $("#editor").value = stripTitleNumbers(st.content);
   items = st.items || [];
   picks = new Set(items.map((i) => i.no)); // 默认全选
   renderItems();
@@ -355,7 +437,7 @@ async function loadState(d) {
 
 async function save() {
   if (!date) return;
-  const r = await api("/api/save", { date, content: $("#editor").value });
+  const r = await api("/api/save", { date, content: stripTitleNumbers($("#editor").value) });
   if (!r.ok) { status(r.error || "保存失败", true); return; }
   items = r.items || items;
   renderItems();
@@ -415,6 +497,16 @@ $("#syncBtn").addEventListener("click", () => {
   syncEnabled = !syncEnabled;
   $("#syncBtn").textContent = syncEnabled ? "🔄 同步滚动：开" : "🔄 同步滚动：关";
   $("#syncBtn").classList.toggle("primary", syncEnabled);
+});
+
+$("#toggleEditorBtn").addEventListener("click", () => {
+  const editor = $("#editor");
+  editor.hidden = !editor.hidden;
+  const expanded = !editor.hidden;
+  const btn = $("#toggleEditorBtn");
+  btn.textContent = expanded ? "✏ 隐藏编辑区" : "✏ 展开编辑区";
+  btn.setAttribute("aria-expanded", String(expanded));
+  if (expanded) editor.focus();
 });
 
 $("#saveBtn").addEventListener("click", save);

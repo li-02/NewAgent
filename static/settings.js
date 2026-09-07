@@ -1,6 +1,12 @@
 const $ = (selector) => document.querySelector(selector);
 const TYPE_LABELS = {
   rss: "RSS / Atom",
+  page_watch: "页面变更追踪",
+  article_index: "文章目录",
+  huggingface: "Hugging Face 模型",
+  github_org: "GitHub 机构仓库",
+  x_account: "X 官方账号",
+  model_catalog: "模型服务目录",
   changelog: "更新日志",
   html_updates: "HTML 更新页",
   hackernews: "Hacker News",
@@ -134,6 +140,8 @@ function openDialog(index = null, preferredType = "rss") {
   $("#fieldItemLimit").value = source.item_limit ?? 5;
   $("#fieldSite").value = source.site || "generic";
   $("#fieldCode").value = source.code || "";
+  $("#fieldContentXpath").value = source.content_xpath || "";
+  $("#fieldLinkPattern").value = source.link_pattern || "";
   $("#fieldMinScore").value = source.min_score ?? 150;
   $("#testResult").textContent = "";
   $("#testResult").className = "test-result";
@@ -150,6 +158,8 @@ function updateTypeFields() {
   if (type === "changelog") $(".changelog-fields").hidden = false;
   if (type === "html_updates") $(".html-fields").hidden = false;
   if (type === "hackernews") $(".hn-fields").hidden = false;
+  if (["page_watch", "article_index"].includes(type)) $(".watch-fields").hidden = false;
+  $(".pattern-field").hidden = type !== "article_index";
 }
 
 function valueOrUndefined(selector) {
@@ -160,6 +170,7 @@ function valueOrUndefined(selector) {
 function sourceFromForm() {
   const type = $("#fieldType").value;
   const source = {
+    ...(editingIndex === null ? {} : sources[editingIndex]),
     name: $("#fieldName").value.trim(),
     type,
     enabled: $("#fieldEnabled").checked,
@@ -177,6 +188,8 @@ function sourceFromForm() {
     source.site = $("#fieldSite").value;
     source.code = valueOrUndefined("#fieldCode");
   }
+  if (["page_watch", "article_index"].includes(type)) source.content_xpath = valueOrUndefined("#fieldContentXpath");
+  if (type === "article_index") source.link_pattern = valueOrUndefined("#fieldLinkPattern");
   if (type === "hackernews") source.min_score = Number($("#fieldMinScore").value || 150);
   return Object.fromEntries(Object.entries(source).filter(([, value]) => value !== undefined));
 }

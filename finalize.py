@@ -8,7 +8,7 @@ Web 端（webui.py）复用 parse_draft_text / build_final 完成同样的装配
 
 规则：
 - 条目文字原样保留（终稿不做任何改写）；
-- 终稿按选定顺序重新编号 #1..#N，概览按草稿分类重排；
+- 终稿按选定顺序重新编号 #1..#N；概览可选，默认不导出；
 - 正文条目不带链接块（草稿里保留链接块是为了截图时对照原文），
   所有信息源统一放到文末「🔗 信息源」小节；
 - 已含图片（用户手动插入的 ![[ ]] 或 ![]()）的条目跳过占位符，
@@ -25,8 +25,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).parent
 
-ITEM_HEAD = re.compile(r"^## (.+) `#(\d+)`$")
-OV_ITEM = re.compile(r"^- (.+) `#(\d+)`$")
+ITEM_HEAD = re.compile(r"^## (.+?)(?:\s+`#(\d+)`)?$")
+OV_ITEM = re.compile(r"^- (.+?)(?:\s+`#(\d+)`)?$")
 OV_GROUP = re.compile(r"^### (.+)$")
 PLACEHOLDER_START = "<!-- 📷 截图占位"
 IMAGE_SLOT = "<!-- 📷 图片区域 -->"
@@ -46,6 +46,7 @@ def parse_draft_text(text: str) -> tuple[dict, dict]:
     in_overview = False
     cat = ""
     current: int | None = None
+    next_no = 1
     for ln in lines:
         if in_overview:
             if ITEM_HEAD.match(ln):
@@ -57,21 +58,27 @@ def parse_draft_text(text: str) -> tuple[dict, dict]:
                     continue
                 m = OV_ITEM.match(ln)
                 if m:
-                    overview[int(m.group(2))] = {
+                    no = int(m.group(2)) if m.group(2) else next_no
+                    overview[no] = {
                         "ov_title": m.group(1).strip(),
                         "category": cat,
                     }
+                    next_no = max(next_no, no + 1)
                     continue
         if ln.startswith("## 概览"):
             in_overview = True
             continue
-        m = ITEM_HEAD.match(ln)
-        if m:
-            current = int(m.group(2))
-            blocks[current] = [ln]
-            continue
         if ln.startswith("## 🗞️ 今日来源"):
             current = None
+            continue
+        m = ITEM_HEAD.match(ln)
+        if m:
+            if m.group(2):
+                current = int(m.group(2))
+            else:
+                used = set(blocks)
+                current = next((n for n in sorted(overview) if n not in used), next_no)
+            blocks[current] = [ln]
             continue
         if current is not None:
             blocks[current].append(ln)
@@ -210,6 +217,7 @@ def build_final(
     asset_root: Path | None = None,
     title: str | None = None,
     include_sources: bool = False,
+    include_overview: bool = False,
 ) -> tuple[str, list[dict]]:
     """按 picks 顺序装配终稿（条目文字原样保留，重新编号 #1..#N）。
     返回 (markdown 文本, rebuilt 元信息列表)。"""
@@ -239,12 +247,13 @@ def build_final(
             "shot": "" if img else f"assets/{date_str}/{new_no:02d}-{slugify(title)}.jpg",
         })
 
-    out_lines += ["## 概览", ""]
-    for cat in dict.fromkeys(r["cat"] for r in rebuilt):  # 保序去重
-        out_lines += [f"### {cat}", ""]
-        out_lines += [f"- {r['title']} `#{r['no']}`" for r in rebuilt if r["cat"] == cat]
-        out_lines.append("")
-    out_lines += ["---", ""]
+    if include_overview:
+        out_lines += ["## 概览", ""]
+        for cat in dict.fromkeys(r["cat"] for r in rebuilt):  # 保序去重
+            out_lines += [f"### {cat}", ""]
+            out_lines += [f"- {r['title']} `#{r['no']}`" for r in rebuilt if r["cat"] == cat]
+            out_lines.append("")
+        out_lines += ["---", ""]
 
     for r in rebuilt:
         out_lines += [f"## {r['title']} `#{r['no']}`", ""]
@@ -310,6 +319,7 @@ def main() -> int:
     ap.add_argument("--out", default=None, help="输出路径（默认 output/AI早报-{date}-终稿.md）")
     ap.add_argument("--title", default=None, help="终稿标题（默认：今日资讯 | AI日报MMDD）")
     ap.add_argument("--include-sources", action="store_true", help="在终稿末尾附带信息源小节")
+    ap.add_argument("--include-overview", action="store_true", help="在终稿开头附带概览，默认不导出")
     args = ap.parse_args()
 
     date_dir = ROOT / "output" / args.date
@@ -340,7 +350,7 @@ def main() -> int:
         print(f"[warn] 编号 {skipped} 在草稿中不存在，已忽略")
     md, rebuilt = build_final(
         overview, blocks, args.picks, args.date, ROOT / "output" / args.date,
-        args.title, args.include_sources
+        args.title, args.include_sources, args.include_overview
     )
     if not rebuilt:
         print("没有可用的条目")

@@ -55,6 +55,10 @@ FINAL_FILE_RE = re.compile(r"^AI早报-(\d{4}-\d{2}-\d{2})-终稿(?:-\d+)?\.md$"
 RUN_LOG_LIMIT = 300
 MAX_IMAGE_BYTES = 15 * 1024 * 1024
 DAILY_HEADING_RE = re.compile(r"^# AI 早报 \d{4}-\d{2}-\d{2}\s*\n+", re.M)
+AUDIT_CHECKLIST_RE = re.compile(
+    r"^## ✅ 审核清单[^\n]*\n.*?(?=^---\s*$)",
+    re.M | re.S,
+)
 
 app = Flask(__name__, static_folder=str(ROOT / "static"), static_url_path="/static")
 run_lock = threading.Lock()
@@ -116,8 +120,9 @@ def available_dates() -> list[str]:
 
 
 def without_daily_heading(text: str) -> str:
-    """Hide the retired generated H1 when loading drafts made by older versions."""
-    return DAILY_HEADING_RE.sub("", text, count=1)
+    """Hide retired generated header content in drafts made by older versions."""
+    text = DAILY_HEADING_RE.sub("", text, count=1)
+    return AUDIT_CHECKLIST_RE.sub("", text, count=1)
 
 
 def _markdown_image_path(line: str) -> str | None:
@@ -169,7 +174,13 @@ def items_from_text(text: str, date: str | None = None) -> list[dict]:
 def attach_item_image(text: str, no: int, path: str) -> str:
     """Replace one item's screenshot placeholder/app screenshot with a stable image slot."""
     lines = text.splitlines()
-    start = next((i for i, line in enumerate(lines) if (m := ITEM_HEAD.match(line)) and int(m.group(2)) == no), None)
+    start = next((
+        i for i, line in enumerate(lines)
+        if (m := ITEM_HEAD.match(line)) and (
+            (m.group(2) and int(m.group(2)) == no)
+            or (not m.group(2) and sum(1 for prior in lines[:i] if ITEM_HEAD.match(prior)) == no)
+        )
+    ), None)
     if start is None:
         raise ValueError(f"编号 #{no} 不在草稿中")
     end = next((i for i in range(start + 1, len(lines)) if ITEM_HEAD.match(lines[i]) or lines[i].startswith("## 🗞️ 今日来源")), len(lines))
@@ -414,7 +425,8 @@ def api_item_image():
     target = asset_dir / name
     target.write_bytes(image_bytes)
     try:
-        updated = attach_item_image(draft.read_text(encoding="utf-8"), no, relative)
+        old_text = without_daily_heading(draft.read_text(encoding="utf-8"))
+        updated = attach_item_image(old_text, no, relative)
     except ValueError as exc:
         target.unlink(missing_ok=True)
         return jsonify({"ok": False, "error": str(exc)}), 400
@@ -431,13 +443,14 @@ def api_export():
     date, picks = data.get("date", ""), data.get("picks", [])
     title = data.get("title")
     include_sources = data.get("include_sources") is True
+    include_overview = data.get("include_overview") is True
     p = draft_path(date)
     if not re.match(r"^\d{4}-\d{2}-\d{2}$", date) or not p.exists():
         return jsonify({"ok": False, "error": "草稿不存在"}), 400
     overview, blocks = parse_draft_text(p.read_text(encoding="utf-8"))
     md, rebuilt = build_final(
         overview, blocks, [int(n) for n in picks], date, OUTPUT / date,
-        title, include_sources
+        title, include_sources, include_overview
     )
     if not rebuilt:
         return jsonify({"ok": False, "error": "没有可用的条目（编号不在草稿中）"}), 400
@@ -457,6 +470,7 @@ def api_export():
         "pdf_path": output_rel(pdf_out),
         "title": md.splitlines()[0].removeprefix("# "),
         "includes_sources": include_sources,
+        "includes_overview": include_overview,
         "selected": [f"#{r['no']}（原#{r['old_no']}·{r['cat']}）{r['title']}" for r in rebuilt],
     })
 

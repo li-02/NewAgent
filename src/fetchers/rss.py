@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 import feedparser
 
 from . import register, strip_html
+from .html_updates import _request_text
 
 
 def _to_datetime(entry) -> datetime | None:
@@ -21,7 +22,9 @@ def _to_datetime(entry) -> datetime | None:
 
 @register("rss")
 def fetch_rss(source: dict, limit: int) -> list[dict]:
-    parsed = feedparser.parse(source["url"])
+    parsed = feedparser.parse(_request_text(source["url"]))
+    if not parsed.entries and (parsed.bozo or not parsed.version or parsed.feed.get("title", "").lower() == "resource not found"):
+        raise ValueError("RSS 返回内容无法解析或不是有效订阅源")
     items = []
     for entry in parsed.entries[:limit]:
         url = (entry.get("link") or "").strip()
