@@ -12,10 +12,13 @@
 .settings-intro > div { flex: 1; }
 .settings-intro strong { font-size: 17px; }
 .settings-intro p { margin-top: 6px; color: var(--muted); font-size: 13px; }
-.daily-limit-setting { display: flex; align-items: end; gap: 8px; white-space: nowrap; }
-.daily-limit-setting label { display: grid; gap: 5px; }
-.daily-limit-setting input { width: 90px; }
-.daily-limit-setting small { color: var(--muted); padding-bottom: 8px; }
+.daily-limit-setting { display: grid; grid-template-columns: repeat(3, minmax(130px, 1fr)); align-items: end; gap: 12px; min-width: 0; }
+.daily-limit-setting label { display: grid; min-width: 0; gap: 5px; }
+.daily-limit-setting input, .daily-limit-setting select { box-sizing: border-box; width: 100%; min-width: 0; }
+.daily-limit-setting > div { display: flex; flex-direction: column; gap: 5px; min-height: 36px; }
+.daily-limit-setting > div span { color: var(--muted); font-size: 13px; }
+.daily-limit-setting button { align-self: end; min-height: 36px; }
+.daily-limit-setting small { grid-column: 1 / -1; color: var(--muted); }
 .source-filter { width: min(320px, 40%); }
 .source-filter span, .source-form-grid label > span { display: block; margin-bottom: 6px; color: var(--muted); font-size: 12px; font-weight: 600; }
 .source-filter input, .source-form-grid input, .source-form-grid select { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--panel); color: var(--text); font: inherit; outline: none; }
@@ -65,6 +68,8 @@
   .settings-shell { width: min(100% - 20px, 1120px); margin-top: 12px; }
   .settings-intro { align-items: stretch; flex-direction: column; }
   .source-filter { width: 100%; }
+  .daily-limit-setting { grid-template-columns: 1fr; }
+  .daily-limit-setting small { grid-column: 1; }
   .source-card { grid-template-columns: auto minmax(0, 1fr); }
   .source-card-actions { grid-column: 2; }
   .source-form-grid { grid-template-columns: 1fr; }

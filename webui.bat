@@ -1,8 +1,13 @@
 @echo off
-title AI Ôç±¨ ¿ØÖÆÖÐÐÄ
+title AI ï¿½ç±¨ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 echo ==============================================
-echo   AI Ôç±¨ ¿ØÖÆÖÐÐÄ  http://127.0.0.1:8765
-echo   ä¯ÀÀÆ÷½«×Ô¶¯´ò¿ª£¬¹Ø±Õ±¾´°¿Ú¼´Í£Ö¹·þÎñ
+echo   AI ï¿½ç±¨ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½  http://127.0.0.1:8765
+echo   ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ô¶ï¿½ï¿½ò¿ª£ï¿½ï¿½Ø±Õ±ï¿½ï¿½ï¿½ï¿½Ú¼ï¿½Í£Ö¹ï¿½ï¿½ï¿½ï¿½
 echo ==============================================
-"E:\documents\zixun\.venv\Scripts\python.exe" "E:\documents\zixun\webui.py"
+set "PROJECT_DIR=%~dp0"
+set "PYTHON_EXE=%PROJECT_DIR%.venv\Scripts\python.exe"
+if not exist "%PYTHON_EXE%" set "PYTHON_EXE=python"
+"%PYTHON_EXE%" "%PROJECT_DIR%webui.py"
+set "EXIT_CODE=%ERRORLEVEL%"
 pause
+exit /b %EXIT_CODE%

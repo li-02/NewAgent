@@ -15,8 +15,11 @@ import binascii
 import os
 import random
 import re
+import shutil
+import json
 import subprocess
 import sys
+import tempfile
 import threading
 import webbrowser
 from collections import deque
@@ -55,6 +58,7 @@ DRAFT_FILE_RE = re.compile(r"^AI早报-(\d{4}-\d{2}-\d{2})(?:-\d+)?\.md$")
 FINAL_FILE_RE = re.compile(r"^AI早报-(\d{4}-\d{2}-\d{2})-终稿(?:-\d+)?\.md$")
 RUN_LOG_LIMIT = 300
 RUN_LOG_DIR = ROOT / "logs" / "webui"
+RUN_SUMMARY_FILE = ROOT / "logs" / "last-run.json"
 MAX_IMAGE_BYTES = 15 * 1024 * 1024
 DAILY_HEADING_RE = re.compile(r"^# AI 早报 \d{4}-\d{2}-\d{2}\s*\n+", re.M)
 AUDIT_CHECKLIST_RE = re.compile(
@@ -73,6 +77,7 @@ run_state = {
     "returncode": None,
     "error": "",
     "logs": deque(maxlen=RUN_LOG_LIMIT),
+    "summary": None,
 }
 
 
@@ -211,7 +216,16 @@ def snapshot_run_state() -> dict:
             "returncode": run_state["returncode"],
             "error": run_state["error"],
             "logs": list(run_state["logs"]),
+            "summary": run_state.get("summary"),
         }
+
+def load_persisted_summary() -> dict | None:
+    if not RUN_SUMMARY_FILE.exists():
+        return None
+    try:
+        return json.loads(RUN_SUMMARY_FILE.read_text(encoding="utf-8"))
+    except (OSError, ValueError, TypeError):
+        return None
 
 
 def append_run_log(line: str) -> None:
@@ -236,6 +250,7 @@ def start_run_log() -> None:
     with run_lock:
         run_state["run_id"] = run_id
         run_state["log_file"] = str(path)
+        run_state["summary"] = {"started_at": run_state.get("started_at"), "failed_sources": [], "fetched": 0, "kept": 0}
 
 
 def run_main_task() -> None:
@@ -255,12 +270,30 @@ def run_main_task() -> None:
         assert proc.stdout is not None
         for line in proc.stdout:
             append_run_log(line)
+            with run_lock:
+                summary = run_state.get("summary") or {}
+                if "[fail]" in line:
+                    summary.setdefault("failed_sources", []).append(line.strip())
+                m = re.search(r"抓到\s+(\d+)\s+条.*本稿候选\s+(\d+)\s+条", line)
+                if m:
+                    summary["fetched"], summary["kept"] = int(m.group(1)), int(m.group(2))
+                final = re.search(r"最终入选\s+(\d+)\s+条", line)
+                if final:
+                    summary["kept"] = int(final.group(1))
+                run_state["summary"] = summary
         code = proc.wait()
         append_run_log(f"运行结束，退出码：{code}")
         with run_lock:
             run_state["returncode"] = code
             run_state["finished_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             run_state["running"] = False
+            run_state["summary"]["returncode"] = code
+            run_state["summary"]["finished_at"] = run_state["finished_at"]
+            try:
+                RUN_SUMMARY_FILE.parent.mkdir(parents=True, exist_ok=True)
+                RUN_SUMMARY_FILE.write_text(json.dumps(run_state["summary"], ensure_ascii=False, indent=2), encoding="utf-8")
+            except OSError:
+                pass
     except Exception as exc:
         append_run_log(f"运行异常：{type(exc).__name__}: {exc}")
         with run_lock:
@@ -278,28 +311,69 @@ def load_app_settings() -> dict:
     """读取控制中心可编辑的全局采集设置。"""
     with CONFIG_FILE.open("r", encoding="utf-8") as handle:
         config = yaml.safe_load(handle) or {}
+    llm = config.get("llm") or {}
+    pref = config.get("preferences") or {}
+    def integer(name, default, low, high):
+        try: value = int(config.get(name, default))
+        except (TypeError, ValueError): value = default
+        return min(max(value, low), high)
+    try: temperature = float(llm.get("temperature", 0.7))
+    except (TypeError, ValueError): temperature = 0.7
+    return {"top_n": integer("top_n", 12, 1, 100), "time_window_hours": integer("time_window_hours", 26, 1, 720),
+            "screenshot_count": integer("screenshot_count", 5, 0, 100), "max_text_chars": integer("max_text_chars", 2500, 200, 20000),
+            "llm": {"enabled": llm.get("enabled", "auto"), "base_url": str(llm.get("base_url", "")), "model": str(llm.get("model", "")), "temperature": min(max(temperature, 0), 2), "api_key_configured": bool(os.getenv("LLM_API_KEY", "").strip() or llm.get("api_key"))},
+            "preferences": {"boost_keywords": pref.get("boost_keywords", []), "downrank_keywords": pref.get("downrank_keywords", []), "block_keywords": pref.get("block_keywords", [])}}
+
+
+def save_app_settings(data: dict) -> dict:
+    """更新个人设置，先保留带时间戳备份，再写回 YAML。"""
+    original_text = CONFIG_FILE.read_text(encoding="utf-8")
+    current = yaml.safe_load(original_text) or {}
+    def number(key, default, low, high):
+        try: value = int(data.get(key, current.get(key, default)))
+        except (TypeError, ValueError) as exc: raise ValueError(f"{key} 必须是整数") from exc
+        if not low <= value <= high: raise ValueError(f"{key} 必须在 {low} 到 {high} 之间")
+        return value
+    current["time_window_hours"] = number("time_window_hours", 26, 1, 720)
+    current["top_n"] = number("top_n", 12, 1, 100)
+    current["screenshot_count"] = number("screenshot_count", 5, 0, 100)
+    current["max_text_chars"] = number("max_text_chars", 2500, 200, 20000)
+    llm = dict(current.get("llm") or {})
+    incoming = data.get("llm") or {}
+    for key in ("enabled", "base_url", "model"):
+        if key in incoming: llm[key] = incoming[key]
+    validate_llm = bool(incoming) or bool(llm)
+    if validate_llm and llm.get("enabled", "auto") not in ("auto", True, False):
+        raise ValueError("llm.enabled 只允许 auto、true 或 false")
+    if validate_llm and str(llm.get("base_url", "")).strip() and not re.match(r"^https?://", str(llm["base_url"]).strip(), re.I):
+        raise ValueError("llm.base_url 必须使用 http 或 https")
+    if validate_llm and not str(llm.get("model", "")).strip():
+        raise ValueError("llm.model 不能为空")
+    if "temperature" in incoming:
+        try: llm["temperature"] = min(max(float(incoming["temperature"]), 0), 2)
+        except (TypeError, ValueError) as exc: raise ValueError("temperature 必须是数字") from exc
+    current["llm"] = llm
+    prefs = data.get("preferences")
+    if prefs is not None:
+        current["preferences"] = {k: [str(v).strip() for v in (prefs.get(k) or []) if str(v).strip()] for k in ("boost_keywords", "downrank_keywords", "block_keywords")}
+    backup = CONFIG_FILE.with_suffix(CONFIG_FILE.suffix + f".bak-{datetime.now():%Y%m%d%H%M%S}")
+    shutil.copy2(CONFIG_FILE, backup)
+    if set(data).issubset({"top_n"}):
+        updated, count = re.subn(r"(?m)^top_n:\s*\d+\s*$", f"top_n: {current['top_n']}", original_text, count=1)
+        output_text = updated if count == 1 else yaml.safe_dump(current, allow_unicode=True, sort_keys=False)
+    else:
+        output_text = yaml.safe_dump(current, allow_unicode=True, sort_keys=False)
+    fd, temp_name = tempfile.mkstemp(prefix=f".{CONFIG_FILE.name}.", suffix=".tmp", dir=str(CONFIG_FILE.parent))
     try:
-        top_n = int(config.get("top_n", 12))
-    except (TypeError, ValueError):
-        top_n = 12
-    return {"top_n": max(top_n, 1)}
-
-
-def save_app_settings(top_n: object) -> int:
-    """只更新 config.yaml 的 top_n，保留其余配置和注释。"""
-    try:
-        value = int(top_n)
-    except (TypeError, ValueError) as exc:
-        raise ValueError("每日筛选新闻数必须是整数") from exc
-    if value < 1 or value > 100:
-        raise ValueError("每日筛选新闻数必须在 1 到 100 之间")
-
-    text = CONFIG_FILE.read_text(encoding="utf-8")
-    updated, count = re.subn(r"(?m)^top_n:\s*\d+\s*$", f"top_n: {value}", text, count=1)
-    if count != 1:
-        raise ValueError("config.yaml 中找不到 top_n 配置")
-    CONFIG_FILE.write_text(updated, encoding="utf-8")
-    return value
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(output_text)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temp_name, CONFIG_FILE)
+    finally:
+        if os.path.exists(temp_name):
+            os.unlink(temp_name)
+    return load_app_settings()
 
 
 def _jsonable_item(item: dict) -> dict:
@@ -369,8 +443,16 @@ def api_run():
 @app.get("/api/run-state")
 def api_run_state():
     state = snapshot_run_state()
+    if state.get("summary") is None:
+        state["summary"] = load_persisted_summary()
     state["ok"] = True
     return jsonify(state)
+
+@app.get("/api/run-summary")
+def api_run_summary():
+    summary = snapshot_run_state().get("summary")
+    if not summary: summary = load_persisted_summary()
+    return jsonify({"ok": True, "summary": summary})
 
 
 @app.get("/api/sources")
@@ -395,12 +477,12 @@ def api_settings():
 def api_save_settings():
     data = request.get_json(force=True) or {}
     try:
-        top_n = save_app_settings(data.get("top_n"))
+        settings = save_app_settings(data)
     except ValueError as exc:
         return _json_error(str(exc), 400)
     except OSError as exc:
         return _json_error(str(exc), 500)
-    return jsonify({"ok": True, "top_n": top_n})
+    return jsonify({"ok": True, **settings})
 
 
 @app.put("/api/sources")
@@ -461,6 +543,29 @@ def api_save():
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(text.replace("\r\n", "\n"), encoding="utf-8")
     return jsonify({"ok": True, "items": items_from_text(text, date)})
+
+def export_checks(date: str, picks: list) -> list[str]:
+    p = draft_path(date)
+    if not re.match(r"^\d{4}-\d{2}-\d{2}$", date) or not p.exists():
+        raise ValueError("草稿不存在")
+    overview, blocks = parse_draft_text(p.read_text(encoding="utf-8"))
+    checks = []
+    for no in [int(n) for n in picks]:
+        block = blocks.get(no, [])
+        info = overview.get(no, {})
+        if not info.get("ov_title"): checks.append(f"#{no} 标题为空")
+        if not any(line.strip() and not line.startswith("<!--") and not line.startswith("![") for line in block): checks.append(f"#{no} 正文为空")
+        if any("截图占位" in line or "待补充截图" in line for line in block): checks.append(f"#{no} 尚有待补截图")
+        if not info.get("url") and not any("http" in line for line in block): checks.append(f"#{no} 来源链接缺失")
+    return checks
+
+@app.post("/api/export-check")
+def api_export_check():
+    data = request.get_json(force=True) or {}
+    try:
+        return jsonify({"ok": True, "warnings": export_checks(data.get("date", ""), data.get("picks", []))})
+    except (ValueError, OSError, TypeError) as exc:
+        return _json_error(str(exc), 400)
 
 
 @app.post("/api/upload-image")
@@ -525,7 +630,9 @@ def api_export():
     p = draft_path(date)
     if not re.match(r"^\d{4}-\d{2}-\d{2}$", date) or not p.exists():
         return jsonify({"ok": False, "error": "草稿不存在"}), 400
-    overview, blocks = parse_draft_text(p.read_text(encoding="utf-8"))
+    draft_text = p.read_text(encoding="utf-8")
+    overview, blocks = parse_draft_text(draft_text)
+    checks = export_checks(date, picks)
     md, rebuilt = build_final(
         overview, blocks, [int(n) for n in picks], date, OUTPUT / date,
         title, include_sources, include_overview
@@ -550,6 +657,8 @@ def api_export():
         "includes_sources": include_sources,
         "includes_overview": include_overview,
         "selected": [f"#{r['no']}（原#{r['old_no']}·{r['cat']}）{r['title']}" for r in rebuilt],
+        "checks": checks,
+        "warnings": checks,
     })
 
 

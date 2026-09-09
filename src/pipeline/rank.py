@@ -16,14 +16,22 @@ RULES = [
 ]
 
 
-def score_item(item: dict) -> float:
+def score_item(item: dict, preferences: dict | None = None) -> float:
     text = f"{item['title']} {item.get('summary', '')}".lower()
     bonus = sum(w for pattern, w in RULES if re.search(pattern, text, re.IGNORECASE))
+    preferences = preferences or {}
+    hits = {"boost": [], "downrank": [], "blocked": []}
+    for key, factor in (("boost_keywords", 2.0), ("downrank_keywords", -2.0), ("block_keywords", -1000.0)):
+        for keyword in preferences.get(key, []) or []:
+            if str(keyword).strip().lower() in text:
+                hits["blocked" if key == "block_keywords" else ("downrank" if key == "downrank_keywords" else "boost")].append(str(keyword))
+                bonus += factor
+    item["ranking_matches"] = hits
     return bonus + float(item.get("weight", 1))
 
 
-def rank(items: list[dict]) -> list[dict]:
+def rank(items: list[dict], preferences: dict | None = None) -> list[dict]:
     for it in items:
-        it["score"] = round(score_item(it), 2)
+        it["score"] = round(score_item(it, preferences), 2)
     items.sort(key=lambda it: it["score"], reverse=True)
     return items

@@ -240,6 +240,15 @@ async function loadAppSettings() {
   try {
     const payload = await requestJson("/api/settings");
     $("#topN").value = payload.top_n ?? 12;
+    $("#timeWindow").value = payload.time_window_hours ?? 26;
+    $("#screenshotCount").value = payload.screenshot_count ?? 5;
+    $("#maxTextChars").value = payload.max_text_chars ?? 2500;
+    $("#llmEnabled").value = String(payload.llm?.enabled ?? "auto");
+    $("#llmModel").value = payload.llm?.model ?? "";
+    $("#llmBaseUrl").value = payload.llm?.base_url ?? "";
+    $("#llmTemperature").value = payload.llm?.temperature ?? 0.7;
+    $("#llmKeyState").textContent = payload.llm?.api_key_configured ? "已配置（不显示密钥）" : "未配置";
+    for (const [id, key] of [["boostKeywords", "boost_keywords"], ["downrankKeywords", "downrank_keywords"], ["blockKeywords", "block_keywords"]]) $("#" + id).value = (payload.preferences?.[key] || []).join(", ");
   } catch (error) {
     setState(`读取筛选设置失败：${error.message}`, true);
   }
@@ -251,10 +260,10 @@ async function saveTopN() {
   try {
     const payload = await requestJson("/api/settings", {
       method: "PUT",
-      body: { top_n: Number($("#topN").value) },
+      body: { top_n: Number($("#topN").value), time_window_hours: Number($("#timeWindow").value), screenshot_count: Number($("#screenshotCount").value), max_text_chars: Number($("#maxTextChars").value), llm: { enabled: $("#llmEnabled").value === "true" ? true : $("#llmEnabled").value === "false" ? false : "auto", model: $("#llmModel").value.trim(), base_url: $("#llmBaseUrl").value.trim(), temperature: Number($("#llmTemperature").value) }, preferences: { boost_keywords: $("#boostKeywords").value.split(","), downrank_keywords: $("#downrankKeywords").value.split(","), block_keywords: $("#blockKeywords").value.split(",") } },
     });
     $("#topN").value = payload.top_n;
-    setState(`已保存最终草稿条数：${payload.top_n}`);
+    setState(`已保存采集设置：每天 ${payload.top_n} 条`);
   } catch (error) {
     setState(`保存筛选设置失败：${error.message}`, true);
   } finally {

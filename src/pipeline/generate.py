@@ -111,7 +111,9 @@ def build_material(items: list[dict]) -> str:
     for i, it in enumerate(items, 1):
         pub = it["published"].strftime("%Y-%m-%d %H:%M UTC") if it.get("published") else "未知"
         observed = it.get("observed_at")
-        provenance = "用户生成内容；只转述具体主体的具体主张，不添加通用免责声明，不得扩写为全体用户或官方公告。" if it.get("evidence_type") == "community" else "按原文限定表述。"
+        # 将“未获官方确认”作为给模型的证据元数据，而不是要求成稿机械添加免责声明；
+        # 这样既保留社区消息的事实边界，也允许输出按具体主体归因的自然措辞。
+        provenance = "该信息未经官方确认；只转述具体主体的具体主张，不得扩写为全体用户或官方公告。" if it.get("evidence_type") == "community" else "按原文限定表述。"
         observation = f"首次检测时间：{observed.isoformat()}（不代表发布时间）；仅描述所附差异。\n" if observed else ""
         blocks.append(
             f"来源：{it['source']}；{provenance}\n{observation}"

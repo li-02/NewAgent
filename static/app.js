@@ -8,6 +8,17 @@ let runPollTimer = null;
 let runWasActive = false;
 let exportOrder = [];
 let runLogVisible = false;
+let draftDirty = false;
+function markDraftDirty() { draftDirty = true; const el = $("#draftState"); if (el) { el.textContent = "● 未保存"; el.classList.add("dirty"); } if (date) localStorage.setItem(`ai-daily-draft:${date}`, $("#editor").value); }
+function markDraftSaved() { draftDirty = false; const el = $("#draftState"); if (el) { el.textContent = "已保存"; el.classList.remove("dirty"); } if (date) localStorage.removeItem(`ai-daily-draft:${date}`); }
+function guardUnsaved(action) {
+  if (draftDirty && !confirm("当前草稿有未保存修改，继续操作会丢失，是否继续？")) {
+    $("#dateSel").value = date || "";
+    return false;
+  }
+  action();
+  return true;
+}
 
 // 编辑区不显示条目编号；编号仍由解析器按条目顺序保留，用于导航和导出。
 function stripTitleNumbers(text) {
@@ -71,15 +82,20 @@ function renderItems() {
       const row = document.createElement("div");
       row.className = "item";
       row.innerHTML = `
-        <label class="item-main" title="勾选编入终稿">
+        <label class="item-check" title="勾选编入终稿">
           <input type="checkbox" ${picks.has(it.no) ? "checked" : ""}>
-          <span class="no">#${it.no}</span>
-          <span class="cat">${it.category}</span>
-          <span class="t">${it.has_img ? "🖼 " : ""}${it.title}</span>
         </label>
+        <span class="no">#${it.no}</span>
+        <button class="jump-btn" title="跳转到 #${it.no}">跳转</button>
+        <span class="cat">${it.category}</span>
+        <span class="t">${it.has_img ? "🖼 " : ""}${it.title}</span>
         <button class="single-btn" title="单条导出：只导出这一条">⬇</button>`;
       row.querySelector("input").addEventListener("change", (e) => {
         e.target.checked ? picks.add(it.no) : picks.delete(it.no);
+      });
+      row.querySelector(".jump-btn").addEventListener("click", (e) => {
+        e.preventDefault();
+        jumpToItem(it.no);
       });
       row.querySelector(".single-btn").addEventListener("click", async (e) => {
         e.preventDefault();
@@ -92,13 +108,14 @@ function renderItems() {
       list.appendChild(row);
     }
   }
-  renderNav();
   renderImageShelf();
 }
 
 function renderImageShelf() {
   const shelf = $("#imageShelf");
-  const imageItems = items.filter((it) => it.needs_image);
+  // Every article gets a slot. A pre-generated Markdown placeholder is optional:
+  // the item-image endpoint can insert the managed image region on first paste.
+  const imageItems = items;
   shelf.innerHTML = "";
   shelf.hidden = !imageItems.length;
   if (!imageItems.length) return;
@@ -124,6 +141,20 @@ function renderImageShelf() {
     const tip = document.createElement("span");
     tip.textContent = it.has_img ? "已有截图 · 再粘贴可替换" : "待截图 · 点击后 Ctrl+V";
     meta.append(label, tip);
+    if (it.image_path) {
+      const copyButton = document.createElement("button");
+      copyButton.type = "button";
+      copyButton.className = "image-copy-btn";
+      copyButton.textContent = "复制图片";
+      copyButton.setAttribute("aria-label", `复制 #${it.no} 的截图`);
+      copyButton.title = `复制 #${it.no} 的截图到剪贴板`;
+      copyButton.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        copyShelfImage(it, copyButton);
+      });
+      meta.appendChild(copyButton);
+    }
     card.appendChild(meta);
 
     if (it.image_path) {
@@ -142,6 +173,31 @@ function renderImageShelf() {
     cards.appendChild(card);
   }
   shelf.appendChild(cards);
+}
+
+async function copyShelfImage(item, button) {
+  if (!navigator.clipboard?.write || !window.ClipboardItem) {
+    status("当前浏览器不支持复制图片，请使用支持图片剪贴板的浏览器", true);
+    return;
+  }
+  const originalText = button.textContent;
+  button.disabled = true;
+  button.textContent = "复制中…";
+  try {
+    const response = await fetch(resolveOutputAsset(item.image_path));
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const blob = await response.blob();
+    if (!blob.type.startsWith("image/")) throw new Error("资源不是图片");
+    await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
+    status(`✅ #${item.no} 截图已复制，可直接粘贴到聊天或文档`);
+    button.textContent = "已复制";
+    setTimeout(() => { button.textContent = originalText; }, 1500);
+  } catch (err) {
+    status(`图片复制失败：${err.message}`, true);
+  } finally {
+    button.disabled = false;
+    if (button.textContent === "复制中…") button.textContent = originalText;
+  }
 }
 
 async function fileToDataUrl(file) {
@@ -164,10 +220,15 @@ async function pasteItemImage(event, no) {
   card.classList.add("uploading");
   status(`正在保存 #${no} 的截图…`);
   try {
+    if (draftDirty) {
+      await save();
+      if (draftDirty) { status("未保存草稿，已中止截图上传", true); return; }
+    }
     const data = await fileToDataUrl(found.getAsFile());
     const r = await api("/api/item-image", { date, no, data });
     if (!r.ok) { status(r.error || "截图保存失败", true); return; }
     $("#editor").value = stripTitleNumbers(r.content);
+    markDraftSaved();
     items = r.items || items;
     renderItems();
     renderPreview();
@@ -176,20 +237,6 @@ async function pasteItemImage(event, no) {
     status(`截图保存失败：${err.message}`, true);
   } finally {
     card.classList.remove("uploading");
-  }
-}
-
-// 条目导航：点击编号 → 编辑器光标跳到条目标题行，预览精准定位到对应标题
-function renderNav() {
-  const nav = $("#navBar");
-  nav.innerHTML = "";
-  for (const it of items) {
-    const b = document.createElement("button");
-    b.className = "nav-chip";
-    b.textContent = "#" + it.no;
-    b.title = `${it.category}｜${it.title}`;
-    b.addEventListener("click", () => jumpToItem(it.no));
-    nav.appendChild(b);
   }
 }
 
@@ -377,13 +424,23 @@ function defaultExportTitle(d) {
   return `今日资讯 | AI日报${suffix}`;
 }
 
-function openExportPreview() {
+async function openExportPreview() {
   exportOrder = items.filter((it) => picks.has(it.no));
   if (!exportOrder.length) {
     status("请先在左侧勾选要编入终稿的条目", true);
     return;
   }
   renderExportPreview();
+  let warnings = [];
+  try {
+    const check = await api("/api/export-check", { date, picks: exportOrder.map((it) => it.no) });
+    warnings = check.warnings || [];
+  } catch (error) {
+    warnings = [`检查失败：${error.message}（仍可继续导出）`];
+  }
+  const warningNode = $("#exportPreviewWarning");
+  warningNode.textContent = warnings.length ? `⚠ 导出前检查提醒（仍可继续）：${warnings.join("；")}` : "✅ 导出前检查通过";
+  warningNode.className = warnings.length ? "export-preview-warning warn" : "export-preview-warning ok";
   const titleInput = $("#exportTitle");
   titleInput.value = defaultExportTitle(date);
   $("#includeSources").checked = false;
@@ -425,7 +482,10 @@ async function loadState(d) {
   const st = await api("/api/state" + (d ? `?date=${encodeURIComponent(d)}` : ""));
   date = st.date;
   renderDateOptions(st.dates, date, !!st.content);
-  $("#editor").value = stripTitleNumbers(st.content);
+  const incoming = stripTitleNumbers(st.content);
+  $("#editor").value = incoming;
+  const backup = date ? localStorage.getItem(`ai-daily-draft:${date}`) : null;
+  if (backup && backup !== incoming && confirm("发现该日期的本地恢复草稿，是否恢复？")) { $("#editor").value = backup; markDraftDirty(); status("已恢复本地草稿，请确认后保存"); } else markDraftSaved();
   items = st.items || [];
   picks = new Set(items.map((i) => i.no)); // 默认全选
   renderItems();
@@ -442,11 +502,13 @@ async function save() {
   items = r.items || items;
   renderItems();
   renderPreview();
+  markDraftSaved();
   status("✅ 已保存 ✓ " + new Date().toLocaleTimeString());
 }
 
 // 编辑 → 防抖预览
 $("#editor").addEventListener("input", () => {
+  markDraftDirty();
   clearTimeout(previewTimer);
   previewTimer = setTimeout(renderPreview, 300);
 });
@@ -511,6 +573,7 @@ $("#toggleEditorBtn").addEventListener("click", () => {
 
 $("#saveBtn").addEventListener("click", save);
 $("#refreshBtn").addEventListener("click", async () => {
+  if (draftDirty && !confirm("当前草稿有未保存修改，刷新会丢失，是否继续？")) return;
   status("正在刷新草稿和图片预览…");
   await loadState(date);
   status("✅ 已刷新草稿和图片预览");
@@ -530,7 +593,7 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && !$("#exportPreview").hidden) closeExportPreview();
 });
 
-$("#dateSel").addEventListener("change", (e) => loadState(e.target.value));
+$("#dateSel").addEventListener("change", (e) => guardUnsaved(() => loadState(e.target.value)));
 $("#allBtn").addEventListener("click", () => { items.forEach((i) => picks.add(i.no)); renderItems(); });
 $("#noneBtn").addEventListener("click", () => { picks.clear(); renderItems(); });
 
@@ -539,6 +602,7 @@ function renderRunState(st) {
   const log = $("#runLog");
   const logToggle = $("#toggleLogBtn");
   const copyLogBtn = $("#copyRunLogBtn");
+  const summaryNode = $("#runSummary");
   btn.disabled = !!st.running;
   btn.textContent = st.running ? "运行中…" : "▶ 采集/成稿";
   const lines = st.logs || [];
@@ -550,6 +614,12 @@ function renderRunState(st) {
   logToggle.textContent = runLogVisible ? "关闭运行日志" : "查看运行日志";
   logToggle.setAttribute("aria-expanded", String(runLogVisible));
   log.textContent = lines.join("\n");
+  const summary = st.summary;
+  if (summaryNode && summary) {
+    const failed = summary.failed_sources?.length || 0;
+    summaryNode.textContent = `本次摘要：抓取 ${summary.fetched || 0} 条 · 入选 ${summary.kept || 0} 条${failed ? ` · 失败来源 ${failed} 个` : " · 来源正常"}`;
+    summaryNode.title = failed ? summary.failed_sources.join("\n") : "";
+  }
   log.scrollTop = log.scrollHeight;
   if (st.running) {
     runWasActive = true;
@@ -563,7 +633,8 @@ function renderRunState(st) {
   runPollTimer = null;
   if (st.returncode === 0) {
     status("✅ 采集/成稿完成，已刷新最新草稿");
-    loadState();
+    if (draftDirty) status("✅ 采集完成；当前有未保存草稿，已跳过自动刷新", true);
+    else loadState();
   } else {
     status(st.error || `采集/成稿失败，退出码：${st.returncode}`, true);
   }
@@ -615,6 +686,8 @@ $("#runBtn").addEventListener("click", async () => {
   clearInterval(runPollTimer);
   runPollTimer = setInterval(pollRunState, 1500);
 });
+
+window.addEventListener("beforeunload", (event) => { if (!draftDirty) return; event.preventDefault(); event.returnValue = ""; });
 
 async function imageToDataUrl(url) {
   const res = await fetch(url);

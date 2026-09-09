@@ -1,11 +1,16 @@
 @echo off
-title AI Ã¿ÈÕ×ÊÑ¶
+title AI Ã¿ï¿½ï¿½ï¿½ï¿½Ñ¶
 echo ==============================================
-echo   AI Ã¿ÈÕ×ÊÑ¶ - ÊÖ¶¯ÔËÐÐ
-echo   Ã¿Ìì×Ô¶¯ÔËÐÐÓÉÈÎÎñ¼Æ»®³ÌÐò¸ºÔð£¨20:00£©
+echo   AI Ã¿ï¿½ï¿½ï¿½ï¿½Ñ¶ - ï¿½Ö¶ï¿½ï¿½ï¿½ï¿½ï¿½
+echo   Ã¿ï¿½ï¿½ï¿½Ô¶ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Æ»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½20:00ï¿½ï¿½
 echo ==============================================
 echo.
-"E:\documents\zixun\.venv\Scripts\python.exe" "E:\documents\zixun\main.py" %*
+set "PROJECT_DIR=%~dp0"
+set "PYTHON_EXE=%PROJECT_DIR%.venv\Scripts\python.exe"
+if not exist "%PYTHON_EXE%" set "PYTHON_EXE=python"
+"%PYTHON_EXE%" "%PROJECT_DIR%main.py" %*
+set "EXIT_CODE=%ERRORLEVEL%"
 echo.
-echo ÔËÐÐ½áÊø¡£¸å¼þÔÚ output Ä¿Â¼£¬¿É¹Ø±Õ±¾´°¿Ú¡£
+echo ï¿½ï¿½ï¿½Ð½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ output Ä¿Â¼ï¿½ï¿½ï¿½É¹Ø±Õ±ï¿½ï¿½ï¿½ï¿½Ú¡ï¿½
 pause
+exit /b %EXIT_CODE%

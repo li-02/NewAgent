@@ -24,6 +24,12 @@ llm:
   model: deepseek-v4-flash-vision-exp
   temperature: 0.7
 
+# 个人排序偏好：命中后会在排序中加分、降权或屏蔽
+preferences:
+  boost_keywords: []
+  downrank_keywords: []
+  block_keywords: []
+
 output:
   dir: output
   filename: "AI早报-{date}.md"

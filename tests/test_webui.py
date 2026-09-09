@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 import base64
+import yaml
 
 import webui
 
@@ -64,6 +65,12 @@ class WebUiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn("image-shelf-count", response.get_data(as_text=True))
+
+    def test_image_shelf_renders_every_article(self) -> None:
+        app_js = (webui.ROOT / "static" / "app.js").read_text(encoding="utf-8")
+
+        self.assertIn("const imageItems = items;", app_js)
+        self.assertNotIn("items.filter((it) => it.needs_image)", app_js)
 
     def test_state_exposes_all_draft_dates_for_history_selector(self) -> None:
         for date in ("2026-08-29", "2026-08-31", "2026-08-30"):
@@ -139,6 +146,19 @@ class WebUiTests(unittest.TestCase):
         self.assertIn("# keep this comment", config.read_text(encoding="utf-8"))
         self.assertIn("top_n: 18", config.read_text(encoding="utf-8"))
 
+    def test_app_settings_save_multiple_fields_and_reject_bad_llm_url(self) -> None:
+        config = self.output / "config.yaml"
+        config.write_text("# keep\ntime_window_hours: 26\ntop_n: 12\nscreenshot_count: 5\nmax_text_chars: 2500\nllm:\n  enabled: auto\n  base_url: https://example.com\n  model: test\n  temperature: 0.7\n", encoding="utf-8")
+        with patch.object(webui, "CONFIG_FILE", config):
+            response = self.client.put("/api/settings", json={"time_window_hours": 48, "screenshot_count": 3, "max_text_chars": 4000, "llm": {"enabled": "auto", "base_url": "https://api.example.com", "model": "model-x", "temperature": 0.4}, "preferences": {"boost_keywords": ["a"], "downrank_keywords": ["b"], "block_keywords": ["c"]}})
+            bad = self.client.put("/api/settings", json={"llm": {"base_url": "ftp://bad", "model": "x"}})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["time_window_hours"], 48)
+        saved = yaml.safe_load(config.read_text(encoding="utf-8"))
+        self.assertEqual(saved["preferences"]["block_keywords"], ["c"])
+        self.assertTrue(list(self.output.glob("config.yaml.bak-*")))
+        self.assertEqual(bad.status_code, 400)
+
     def test_run_endpoint_starts_background_task(self) -> None:
         fake_thread = unittest.mock.Mock()
         with patch("webui.threading.Thread", return_value=fake_thread):
@@ -151,6 +171,24 @@ class WebUiTests(unittest.TestCase):
         fake_thread.start.assert_called_once_with()
         with webui.run_lock:
             webui.run_state["running"] = False
+
+    def test_run_state_reads_persisted_summary_after_restart(self) -> None:
+        summary_file = self.output / "last-run.json"
+        summary_file.write_text('{"fetched": 20, "kept": 5}', encoding="utf-8")
+        with patch.object(webui, "RUN_SUMMARY_FILE", summary_file):
+            with webui.run_lock:
+                webui.run_state["summary"] = None
+            payload = self.client.get("/api/run-state").get_json()
+        self.assertEqual(payload["summary"]["kept"], 5)
+
+    def test_export_check_reports_missing_content(self) -> None:
+        date = "2026-08-31"
+        date_dir = self.output / date
+        date_dir.mkdir(parents=True)
+        (date_dir / f"AI早报-{date}.md").write_text("## 概览\n\n## 条目 #1\n\n<!-- 截图占位 -->\n", encoding="utf-8")
+        response = self.client.post("/api/export-check", json={"date": date, "picks": [1]})
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.get_json()["warnings"])
 
     def test_placeholder_is_exposed_as_empty_item_image_slot(self) -> None:
         text = """## 概览
@@ -173,6 +211,25 @@ class WebUiTests(unittest.TestCase):
         self.assertTrue(item["needs_image"])
         self.assertFalse(item["has_img"])
         self.assertIsNone(item["image_path"])
+
+    def test_pasting_item_image_adds_slot_when_article_has_no_placeholder(self) -> None:
+        text = """## 概览
+
+### 要闻
+
+- 测试资讯 `#1`
+
+## 测试资讯 `#1`
+
+正文
+"""
+
+        updated = webui.attach_item_image(
+            text, 1, "assets/2026-09-08/item-01-test.png"
+        )
+
+        self.assertIn(webui.IMAGE_SLOT, updated)
+        self.assertIn("![截图](assets/2026-09-08/item-01-test.png)", updated)
 
     def test_pasting_item_image_replaces_placeholder_and_saves_draft(self) -> None:
         date = "2026-08-31"

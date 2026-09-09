@@ -47,6 +47,67 @@ sources:
     url: https://venturebeat.com/category/ai/feed/
     weight: 1
 
+  # 补充高频 AI 资讯与技术媒体；媒体源保持低权重，避免压过官方公告。
+  - name: Ars Technica AI
+    type: rss
+    url: https://arstechnica.com/ai/feed/
+    weight: 1
+
+  - name: The Decoder
+    type: rss
+    url: https://the-decoder.com/feed/
+    require_ai: true
+    weight: 1
+
+  - name: InfoQ AI/ML
+    type: rss
+    url: https://feed.infoq.com/ai-ml-data-eng/
+    require_ai: true
+    weight: 1
+    category: dev
+
+  - name: 量子位
+    type: rss
+    url: https://www.qbitai.com/feed
+    weight: 1
+
+  # 官方研究、开源社区与 AI 基础设施博客。
+  - name: Hugging Face Blog
+    type: rss
+    url: https://huggingface.co/blog/feed.xml
+    weight: 2
+
+  - name: Google Research
+    type: rss
+    url: https://research.google/blog/rss/
+    weight: 3
+    category: paper
+
+  - name: Apple ML Research
+    type: rss
+    url: https://machinelearning.apple.com/rss.xml
+    weight: 3
+    category: paper
+
+  - name: AWS AI Blog
+    type: rss
+    url: https://aws.amazon.com/blogs/machine-learning/feed/
+    weight: 2
+    category: dev
+
+  - name: Cloudflare AI
+    type: rss
+    url: https://blog.cloudflare.com/tag/ai/rss/
+    weight: 2
+    category: dev
+
+  - name: GitHub Changelog AI
+    type: rss
+    url: https://github.blog/changelog/feed/
+    require_ai: true
+    weight: 2
+    category: dev
+
   - name: Claude Code
     type: changelog
     format: markdown
@@ -174,6 +235,43 @@ sources:
     url: https://github.com/anomalyco/opencode/releases.atom
     category: dev
     weight: 3
+
+  # 主流 AI 开发框架发布；不接入高频逐构建/nightly 源。
+  - name: LangChain Releases
+    type: rss
+    url: https://github.com/langchain-ai/langchain/releases.atom
+    category: dev
+    weight: 2
+
+  - name: LlamaIndex Releases
+    type: rss
+    url: https://github.com/run-llama/llama_index/releases.atom
+    category: dev
+    weight: 2
+
+  - name: vLLM Releases
+    type: rss
+    url: https://github.com/vllm-project/vllm/releases.atom
+    category: dev
+    weight: 2
+
+  - name: Transformers Releases
+    type: rss
+    url: https://github.com/huggingface/transformers/releases.atom
+    category: dev
+    weight: 2
+
+  - name: Ollama Releases
+    type: rss
+    url: https://github.com/ollama/ollama/releases.atom
+    category: dev
+    weight: 2
+
+  - name: MCP Python SDK Releases
+    type: rss
+    url: https://github.com/modelcontextprotocol/python-sdk/releases.atom
+    category: dev
+    weight: 2
 
   - name: Qoder 千问夜间优惠
     type: page_watch

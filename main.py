@@ -125,7 +125,7 @@ def main() -> int:
 
     if args.demo:
         print("[demo] 使用内置示例数据生成预览稿")
-        items = rank(DEMO_ITEMS)[:top_n]
+        items = rank(DEMO_ITEMS, cfg.get("preferences"))[:top_n]
         assign_screenshot_paths(items, date_str, int(cfg.get("screenshot_count", 5)))
         llm = resolve_llm(cfg.get("llm", {}), disabled=args.no_llm)
         body = generate_digest(items, date_str, llm)
@@ -165,7 +165,7 @@ def main() -> int:
         # 去重只用于避免重复入库，不能阻止用户手动生成当天快照。
         items = dedup(candidates, set())
         print("       本次条目均已收录，仍生成当天快照（不覆盖历史文件）")
-    print(f"       抓到 {fetched_count} 条 → 窗口内 {len(windowed)} 条 → 本稿 {len(items)} 条")
+    print(f"       抓到 {fetched_count} 条 → 窗口内 {len(windowed)} 条 → 本稿候选 {len(items)} 条")
     merged = merge_changelog_updates(items)
     if len(merged) != len(items):
         print(f"       同工具多版本合并：{len(items)} → {len(merged)} 条")
@@ -176,7 +176,13 @@ def main() -> int:
         return 0
 
     print("[3/6] 关键词排序")
-    items = rank(items)[:top_n]
+    items = rank(items, cfg.get("preferences"))
+    blocked = [it for it in items if it.get("ranking_matches", {}).get("blocked")]
+    if blocked:
+        items = [it for it in items if not it.get("ranking_matches", {}).get("blocked")]
+        print(f"       偏好屏蔽 {len(blocked)} 条")
+    items = items[:top_n]
+    print(f"       最终入选 {len(items)} 条")
 
     print("[4/6] 提取正文（Top 条目，反爬站点自动退回摘要）")
     for it in items:

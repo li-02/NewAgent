@@ -18,7 +18,8 @@
   <button id="syncBtn" class="primary">🔄 同步滚动：开</button>
   <button id="toggleEditorBtn" title="展开或隐藏 Markdown 编辑区">✏ 展开编辑区</button>
   <button id="refreshBtn" title="重新读取当前日期的草稿并刷新预览">🔃 刷新</button>
-  <button id="saveBtn">💾 保存 (Ctrl+S)</button>
+      <button id="saveBtn">💾 保存 (Ctrl+S)</button>
+      <span id="draftState" class="draft-state" aria-live="polite">已保存</span>
   <button id="exportBtn" class="primary">📤 导出终稿</button>
   <button id="copyFinalBtn">📋 复制发布版</button>
 </header>
@@ -37,8 +38,7 @@
   </aside>
 
   <section id="work">
-    <div id="navBar" title="条目导航：点击跳转到对应条目"></div>
-    <section id="imageShelf" aria-label="资讯截图存放区"></section>
+    <section id="imageShelf" aria-label="资讯截图存放区"><span class="image-shelf-count" hidden></span></section>
     <div id="panes">
       <textarea id="editor" hidden spellcheck="false"
         placeholder="草稿加载中…（若为空：先运行 run.bat 生成当日草稿）"></textarea>
@@ -46,6 +46,7 @@
     </div>
     <div id="status">
       <span id="statusText"></span>
+      <span id="runSummary" class="run-summary" aria-live="polite"></span>
       <button id="toggleLogBtn" class="log-toggle" type="button" hidden aria-expanded="false">查看运行日志</button>
       <button id="copyRunLogBtn" class="log-toggle" type="button" hidden>复制日志</button>
     </div>
@@ -76,6 +77,7 @@
       <span><strong>导出概览</strong><small>勾选后在终稿开头附带概览，默认不导出。</small></span>
     </label>
     <div id="exportPreviewList" class="export-preview-list"></div>
+    <div id="exportPreviewWarning" class="export-preview-warning"></div>
     <div class="export-dialog-foot">
       <span id="exportPreviewCount"></span>
       <span class="spacer"></span>

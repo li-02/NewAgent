@@ -25,13 +25,24 @@
 <main class="settings-shell">
   <section class="settings-intro">
     <div>
-      <strong id="sourceCount">正在读取信息源…</strong>
+      <strong id="sourceCount">正在读取信息源…</strong><span class="sr-only">信息源设置</span>
       <p>修改会先保存在页面中；点击“保存全部”后才写入配置。关闭的来源不会参与下一次采集。</p>
     </div>
     <div class="daily-limit-setting">
       <label for="topN"><strong>最终草稿条数</strong><input id="topN" type="number" min="1" max="100" value="12"></label>
-      <button id="saveTopNBtn" type="button">保存数量</button>
-      <small>默认 12 条</small>
+      <label for="timeWindow"><strong>时间窗口（小时）</strong><input id="timeWindow" type="number" min="1" max="720" value="26"></label>
+      <label for="screenshotCount"><strong>截图占位数</strong><input id="screenshotCount" type="number" min="0" max="100" value="5"></label>
+      <label for="maxTextChars"><strong>正文上限</strong><input id="maxTextChars" type="number" min="200" max="20000" value="2500"></label>
+      <label for="llmEnabled"><strong>LLM 状态</strong><select id="llmEnabled"><option value="auto">自动</option><option value="true">启用</option><option value="false">关闭</option></select></label>
+      <label for="llmModel"><strong>LLM 模型</strong><input id="llmModel" type="text"></label>
+      <label for="llmBaseUrl"><strong>LLM 地址</strong><input id="llmBaseUrl" type="url"></label>
+      <label for="llmTemperature"><strong>温度</strong><input id="llmTemperature" type="number" min="0" max="2" step="0.1"></label>
+      <div><strong>API Key</strong><span id="llmKeyState">未检查</span></div>
+      <label class="wide"><strong>加分关键词</strong><input id="boostKeywords" placeholder="逗号分隔"></label>
+      <label class="wide"><strong>降权关键词</strong><input id="downrankKeywords" placeholder="逗号分隔"></label>
+      <label class="wide"><strong>屏蔽关键词</strong><input id="blockKeywords" placeholder="逗号分隔"></label>
+      <button id="saveTopNBtn" type="button">保存采集设置</button>
+      <small>设置会自动备份 config.yaml；API Key 只显示是否已配置。</small>
     </div>
     <label class="source-filter">
       <span>筛选</span>
