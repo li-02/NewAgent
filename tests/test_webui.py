@@ -8,6 +8,7 @@ import base64
 import yaml
 
 import webui
+from src.article_archive import snapshot_filtered_items
 
 
 class WebUiTests(unittest.TestCase):
@@ -18,10 +19,13 @@ class WebUiTests(unittest.TestCase):
         self.output_patch.start()
         self.log_dir_patch = patch.object(webui, "RUN_LOG_DIR", self.output / "logs")
         self.log_dir_patch.start()
+        self.archive_patch = patch.object(webui, "ARTICLE_ARCHIVE", self.output / "article-archive")
+        self.archive_patch.start()
         webui.app.config.update(TESTING=True)
         self.client = webui.app.test_client()
 
     def tearDown(self) -> None:
+        self.archive_patch.stop()
         self.output_patch.stop()
         self.log_dir_patch.stop()
         self.temp.cleanup()
@@ -65,6 +69,35 @@ class WebUiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn("image-shelf-count", response.get_data(as_text=True))
+
+    def test_index_item_picker_is_expanded_and_carryover_collapsed_by_default(self) -> None:
+        html = self.client.get("/").get_data(as_text=True)
+
+        self.assertIn('<details id="itemPicker" class="item-picker" open>', html)
+        self.assertIn('<details id="carryoverPanel" class="carryover-panel" hidden>', html)
+        self.assertNotIn('id="carryoverPanel" class="carryover-panel" hidden open', html)
+        self.assertIn('<button id="addCarryoverBtn" type="button">加入今天</button>', html)
+        self.assertIn('className = "source-link"', (webui.ROOT / "static" / "app.js").read_text(encoding="utf-8"))
+
+    def test_items_expose_original_links(self) -> None:
+        text = """## 概览
+
+### 要闻
+
+- 测试资讯 `#1`
+
+## 测试资讯 `#1`
+
+正文
+
+```text
+https://example.com/article
+```
+"""
+
+        item = webui.items_from_text(text)[0]
+
+        self.assertEqual(item["links"], ["https://example.com/article"])
 
     def test_image_shelf_renders_every_article(self) -> None:
         app_js = (webui.ROOT / "static" / "app.js").read_text(encoding="utf-8")
@@ -190,6 +223,32 @@ class WebUiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.get_json()["warnings"])
 
+    def test_carryover_api_adds_yesterday_unexported_article(self) -> None:
+        yesterday, today = "2026-09-09", "2026-09-10"
+        today_dir = self.output / today
+        today_dir.mkdir(parents=True)
+        (today_dir / f"AI早报-{today}.md").write_text(
+            "## 概览\n\n### 要闻\n\n- 今日文章 `#1`\n\n## 今日文章 `#1`\n\n今日正文\n\n```text\nhttps://example.com/today\n```\n",
+            encoding="utf-8",
+        )
+        snapshot_filtered_items(yesterday, [{
+            "title": "昨日剩余", "url": "https://example.com/yesterday",
+            "category": "news", "summary": "昨日摘要",
+        }], webui.ARTICLE_ARCHIVE)
+
+        available = self.client.get(f"/api/carryover?date={today}").get_json()
+        response = self.client.post("/api/carryover", json={
+            "date": today,
+            "source_date": yesterday,
+            "keys": [available["items"][0]["key"]],
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["added"], 1)
+        self.assertIn("昨日剩余", response.get_json()["content"])
+        self.assertEqual(response.get_json()["items"][1]["title"], "昨日剩余")
+        self.assertEqual(self.client.get(f"/api/carryover?date={today}").get_json()["items"], [])
+
     def test_placeholder_is_exposed_as_empty_item_image_slot(self) -> None:
         text = """## 概览
 
@@ -308,6 +367,66 @@ https://example.com
         self.assertTrue(pdf.is_file())
         self.assertTrue(pdf.read_bytes().startswith(b"%PDF"))
         self.assertIn(b"/Subtype /Image", pdf.read_bytes())
+
+    def test_export_keeps_cover_as_resource_without_adding_it_to_document(self) -> None:
+        date = "2026-08-31"
+        date_dir = self.output / date
+        asset_dir = date_dir / "assets" / date
+        asset_dir.mkdir(parents=True)
+        image = base64.b64decode(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+        )
+        (asset_dir / "item-01-cover.png").write_bytes(image)
+        (date_dir / f"AI早报-{date}.md").write_text("""## 概览
+
+### 要闻
+
+- 第一篇 `#1`
+
+## 第一篇 `#1`
+
+正文
+![截图](assets/2026-08-31/item-01-cover.png)
+""", encoding="utf-8")
+
+        response = self.client.post("/api/export", json={"date": date, "picks": [1]})
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["cover_path"], "assets/2026-08-31/item-01-cover.png")
+        markdown = (self.output / payload["path"]).read_text(encoding="utf-8")
+        self.assertNotIn("📕 导出封面", markdown)
+        self.assertNotIn("![封面]", markdown)
+
+    def test_export_cover_upload_is_saved(self) -> None:
+        date = "2026-08-31"
+        date_dir = self.output / date
+        date_dir.mkdir(parents=True)
+        (date_dir / f"AI早报-{date}.md").write_text(
+            "## 概览\n\n### 要闻\n\n- 无图资讯 `#1`\n\n"
+            "## 无图资讯 `#1`\n\n正文\n",
+            encoding="utf-8",
+        )
+        png = base64.b64encode(
+            base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=")
+        ).decode("ascii")
+
+        response = self.client.post("/api/export-cover", json={
+            "date": date, "data": f"data:image/png;base64,{png}",
+        })
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertTrue((self.output / date / payload["path"]).is_file())
+        self.assertTrue(payload["path"].startswith(f"assets/{date}/cover-"))
+
+        exported = self.client.post("/api/export", json={
+            "date": date, "picks": [1], "cover_path": payload["path"],
+        }).get_json()
+        markdown = (self.output / exported["path"]).read_text(encoding="utf-8")
+        pdf = (self.output / exported["pdf_path"]).read_bytes()
+        self.assertNotIn(payload["path"], markdown)
+        self.assertNotIn(b"/Subtype /Image", pdf)
 
 
 if __name__ == "__main__":

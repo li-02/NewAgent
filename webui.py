@@ -41,6 +41,7 @@ from finalize import (
     strip_placeholder,
 )
 from pdf_export import markdown_to_pdf
+from src.article_archive import article_keys_from_text, append_carryover, carryover_candidates, record_export
 from src.fetchers import run_source
 from src.source_config import (
     SourceConfigError,
@@ -60,6 +61,7 @@ RUN_LOG_LIMIT = 300
 RUN_LOG_DIR = ROOT / "logs" / "webui"
 RUN_SUMMARY_FILE = ROOT / "logs" / "last-run.json"
 MAX_IMAGE_BYTES = 15 * 1024 * 1024
+ARTICLE_ARCHIVE = ROOT / "data" / "article-archive"
 DAILY_HEADING_RE = re.compile(r"^# AI 早报 \d{4}-\d{2}-\d{2}\s*\n+", re.M)
 AUDIT_CHECKLIST_RE = re.compile(
     r"^## ✅ 审核清单[^\n]*\n.*?(?=^---\s*$)",
@@ -139,6 +141,11 @@ def _markdown_image_path(line: str) -> str | None:
     return match.group(1).strip() if match else None
 
 
+def _item_links(block: list[str]) -> list[str]:
+    """提取条目链接块中的原文 URL，供条目选择区快速打开。"""
+    return [line.strip() for line in block if re.match(r"^https?://\S+$", line.strip(), re.I)]
+
+
 def _item_image_state(block: list[str], date: str | None = None) -> tuple[bool, bool, str | None]:
     """Return (has screenshot slot, has actual image, previewable path)."""
     has_slot = any(ln.startswith(PLACEHOLDER_START) or ln.strip() == IMAGE_SLOT for ln in block)
@@ -173,6 +180,7 @@ def items_from_text(text: str, date: str | None = None) -> list[dict]:
             "no": no,
             "title": info.get("ov_title") or f"条目{no}",
             "category": info.get("category", "要闻"),
+            "links": _item_links(blk),
             "has_img": has_img,
             "needs_image": needs_image,
             "image_path": image_path,
@@ -544,6 +552,47 @@ def api_save():
     p.write_text(text.replace("\r\n", "\n"), encoding="utf-8")
     return jsonify({"ok": True, "items": items_from_text(text, date)})
 
+
+@app.get("/api/carryover")
+def api_carryover():
+    """List yesterday's filtered articles that have not been exported."""
+    date = request.args.get("date", "")
+    if not re.match(r"^\d{4}-\d{2}-\d{2}$", date):
+        return _json_error("日期格式不合法", 400)
+    try:
+        source_date, candidates = carryover_candidates(date, OUTPUT, ARTICLE_ARCHIVE)
+    except ValueError as exc:
+        return _json_error(str(exc), 400)
+    current = draft_path(date)
+    if current.is_file():
+        existing = article_keys_from_text(current.read_text(encoding="utf-8"))
+        candidates = [item for item in candidates if item["key"] not in existing]
+    return jsonify({"ok": True, "source_date": source_date, "items": candidates})
+
+
+@app.post("/api/carryover")
+def api_add_carryover():
+    """Copy selected yesterday articles and their local images into today's draft."""
+    data = request.get_json(force=True) or {}
+    date = data.get("date", "")
+    source_date = data.get("source_date", "")
+    keys = data.get("keys") or []
+    if not re.match(r"^\d{4}-\d{2}-\d{2}$", date) or not isinstance(keys, list):
+        return _json_error("参数不合法", 400)
+    draft = draft_path(date)
+    if not draft.is_file():
+        return _json_error("请先完成今天的采集和筛选", 400)
+    try:
+        current = without_daily_heading(draft.read_text(encoding="utf-8"))
+        updated, added = append_carryover(
+            date, source_date, [str(key) for key in keys], current, OUTPUT, ARTICLE_ARCHIVE
+        )
+    except (OSError, ValueError) as exc:
+        return _json_error(str(exc), 400)
+    if added:
+        draft.write_text(updated, encoding="utf-8")
+    return jsonify({"ok": True, "added": added, "content": updated, "items": items_from_text(updated, date)})
+
 def export_checks(date: str, picks: list) -> list[str]:
     p = draft_path(date)
     if not re.match(r"^\d{4}-\d{2}-\d{2}$", date) or not p.exists():
@@ -558,6 +607,36 @@ def export_checks(date: str, picks: list) -> list[str]:
         if any("截图占位" in line or "待补充截图" in line for line in block): checks.append(f"#{no} 尚有待补截图")
         if not info.get("url") and not any("http" in line for line in block): checks.append(f"#{no} 来源链接缺失")
     return checks
+
+
+def _cover_path_for_export(date: str, cover_path: str | None, picks: list[int], blocks: dict) -> str | None:
+    """Return a safe, existing local cover path; absent input uses first picked article image."""
+    asset_root = OUTPUT / date
+    candidate = cover_path
+    if not candidate:
+        for no in picks:
+            image = existing_image_for_cover(blocks.get(no, []), asset_root)
+            if image:
+                candidate = image
+                break
+    if not candidate or re.match(r"^(?:https?:|data:|/|#)", candidate, re.I):
+        return None
+    clean = Path(candidate.replace("/", os.sep))
+    target = (asset_root / clean).resolve()
+    if target.is_file() and asset_root.resolve() in target.parents:
+        return clean.as_posix()
+    raise ValueError("封面图片不存在或不在当前日期的素材目录中")
+
+
+def existing_image_for_cover(block: list[str], asset_root: Path) -> str | None:
+    for line in block:
+        path = _markdown_image_path(line)
+        if not path or re.match(r"^(?:https?:|data:|/|#)", path, re.I):
+            continue
+        target = (asset_root / path.replace("/", os.sep)).resolve()
+        if target.is_file() and asset_root.resolve() in target.parents:
+            return target.relative_to(asset_root).as_posix()
+    return None
 
 @app.post("/api/export-check")
 def api_export_check():
@@ -581,6 +660,28 @@ def api_upload_image():
     asset_dir.mkdir(parents=True, exist_ok=True)
     name = f"{datetime.now():%H%M%S}-{random.randint(1000, 9999)}.{ext}"
     (asset_dir / name).write_bytes(base64.b64decode(m.group(2)))
+    return jsonify({"ok": True, "path": f"assets/{date}/{name}"})
+
+
+@app.post("/api/export-cover")
+def api_export_cover():
+    """保存导出封面到当前日期的素材目录并返回相对路径。"""
+    data = request.get_json(force=True) or {}
+    date = data.get("date", "")
+    match = re.match(r"data:image/(png|jpeg|jpg|webp|gif);base64,(.+)", data.get("data", ""), re.S)
+    if not re.match(r"^\d{4}-\d{2}-\d{2}$", date) or not match:
+        return jsonify({"ok": False, "error": "参数不合法"}), 400
+    try:
+        image_bytes = base64.b64decode(match.group(2), validate=True)
+    except (binascii.Error, ValueError):
+        return jsonify({"ok": False, "error": "封面图片数据损坏"}), 400
+    if not image_bytes or len(image_bytes) > MAX_IMAGE_BYTES:
+        return jsonify({"ok": False, "error": "封面为空或超过 15MB"}), 400
+    ext = "jpg" if match.group(1) == "jpeg" else match.group(1)
+    asset_dir = OUTPUT / date / "assets" / date
+    asset_dir.mkdir(parents=True, exist_ok=True)
+    name = f"cover-{datetime.now():%H%M%S}-{random.randint(1000, 9999)}.{ext}"
+    (asset_dir / name).write_bytes(image_bytes)
     return jsonify({"ok": True, "path": f"assets/{date}/{name}"})
 
 
@@ -627,12 +728,17 @@ def api_export():
     title = data.get("title")
     include_sources = data.get("include_sources") is True
     include_overview = data.get("include_overview") is True
+    cover_path = data.get("cover_path")
     p = draft_path(date)
     if not re.match(r"^\d{4}-\d{2}-\d{2}$", date) or not p.exists():
         return jsonify({"ok": False, "error": "草稿不存在"}), 400
     draft_text = p.read_text(encoding="utf-8")
     overview, blocks = parse_draft_text(draft_text)
     checks = export_checks(date, picks)
+    try:
+        cover_path = _cover_path_for_export(date, cover_path, [int(n) for n in picks], blocks)
+    except ValueError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
     md, rebuilt = build_final(
         overview, blocks, [int(n) for n in picks], date, OUTPUT / date,
         title, include_sources, include_overview
@@ -647,6 +753,7 @@ def api_export():
     out.write_text(md, encoding="utf-8")
     pdf_out = out.with_suffix(".pdf")
     markdown_to_pdf(md, pdf_out, out.parent)
+    record_export(date, overview, blocks, [int(n) for n in picks], out.name, ARTICLE_ARCHIVE)
     return jsonify({
         "ok": True,
         "name": out.name,
@@ -656,6 +763,7 @@ def api_export():
         "title": md.splitlines()[0].removeprefix("# "),
         "includes_sources": include_sources,
         "includes_overview": include_overview,
+        "cover_path": cover_path,
         "selected": [f"#{r['no']}（原#{r['old_no']}·{r['cat']}）{r['title']}" for r in rebuilt],
         "checks": checks,
         "warnings": checks,
@@ -676,6 +784,7 @@ def api_export_single():
         return jsonify({"ok": False, "error": f"编号 #{no} 不在草稿中"}), 400
     out = next_path(OUTPUT / date / f"AI早报-{date}-单条-{no}.md")
     out.write_text(md, encoding="utf-8")
+    record_export(date, overview, blocks, [no], out.name, ARTICLE_ARCHIVE)
     return jsonify({"ok": True, "name": out.name, "path": output_rel(out), "title": meta["title"]})
 
 

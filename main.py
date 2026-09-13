@@ -17,6 +17,7 @@ import yaml
 from dotenv import load_dotenv
 
 from src.db import DB
+from src.article_archive import backup_filtered_draft, snapshot_filtered_items
 from src.fetchers import run_source
 from src.pipeline.dedup import dedup, url_hash
 from src.pipeline.extract import fetch_text
@@ -125,12 +126,15 @@ def main() -> int:
 
     if args.demo:
         print("[demo] 使用内置示例数据生成预览稿")
-        items = rank(DEMO_ITEMS, cfg.get("preferences"))[:top_n]
+        items = rank(DEMO_ITEMS, cfg.get("preferences"))
+        snapshot_filtered_items(date_str, items, ROOT / "data" / "article-archive")
+        items = items[:top_n]
         assign_screenshot_paths(items, date_str, int(cfg.get("screenshot_count", 5)))
         llm = resolve_llm(cfg.get("llm", {}), disabled=args.no_llm)
         body = generate_digest(items, date_str, llm)
         md = render_digest(items, date_str, body, {"fetched": 6, "kept": 5, "source_count": 5})
         path = write_digest(md, ROOT / cfg["output"]["dir"], cfg["output"]["filename"], date_str)
+        backup_filtered_draft(path, date_str, ROOT / "data" / "article-archive")
         print(f"[demo] 已生成：{path}")
         return 0
 
@@ -181,6 +185,7 @@ def main() -> int:
     if blocked:
         items = [it for it in items if not it.get("ranking_matches", {}).get("blocked")]
         print(f"       偏好屏蔽 {len(blocked)} 条")
+    snapshot_filtered_items(date_str, items, ROOT / "data" / "article-archive")
     items = items[:top_n]
     print(f"       最终入选 {len(items)} 条")
 
@@ -208,6 +213,7 @@ def main() -> int:
 
     print("[6/6] 写入文件 + 更新去重库")
     path = write_digest(md, ROOT / cfg["output"]["dir"], cfg["output"]["filename"], date_str)
+    backup_filtered_draft(path, date_str, ROOT / "data" / "article-archive")
     now = datetime.now().isoformat(timespec="seconds")
     for it in candidates:
         db.add_seen(url_hash(it["url"]), it["url"], it["title"], now)

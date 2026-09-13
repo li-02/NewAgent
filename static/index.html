@@ -26,22 +26,36 @@
 
 <main>
   <aside>
-    <div class="side-title">
-      条目选择
-      <span class="side-btns">
-        <button id="allBtn">全选</button>
-        <button id="noneBtn">清空</button>
-      </span>
-    </div>
-    <div id="itemList"></div>
+    <details id="itemPicker" class="item-picker" open>
+      <summary class="side-title">
+        <span>条目选择</span>
+        <span class="side-btns">
+          <button id="allBtn" type="button">全选</button>
+          <button id="noneBtn" type="button">清空</button>
+        </span>
+      </summary>
+      <div id="itemList"></div>
+    </details>
+    <details id="carryoverPanel" class="carryover-panel" hidden>
+      <summary class="carryover-head">
+        <span id="carryoverTitle">昨日未导出</span>
+        <button id="addCarryoverBtn" type="button">加入今天</button>
+      </summary>
+      <div id="carryoverList"></div>
+      <div class="carryover-tip">从昨日筛选备份中补选；默认不加入。</div>
+    </details>
     <div class="side-tip">勾选的条目按当前顺序编入终稿；终稿会重新编号并重排概览。</div>
   </aside>
 
+  <div class="splitter" id="asideSplitter" title="拖动调整条目选择区宽度；双击恢复默认"></div>
+
   <section id="work">
     <section id="imageShelf" aria-label="资讯截图存放区"><span class="image-shelf-count" hidden></span></section>
+    <div class="splitter" id="shelfSplitter" hidden title="拖动调整截图区宽度；双击恢复默认"></div>
     <div id="panes">
       <textarea id="editor" hidden spellcheck="false"
         placeholder="草稿加载中…（若为空：先运行 run.bat 生成当日草稿）"></textarea>
+      <div class="splitter" id="editorSplitter" hidden title="拖动调整编辑区宽度；双击恢复默认"></div>
       <div id="preview" class="md"></div>
     </div>
     <div id="status">
@@ -68,6 +82,18 @@
       <input id="exportTitle" type="text" maxlength="120" autocomplete="off">
       <small>可以修改标题；默认末尾为“| AI日报MMDD”。</small>
     </label>
+    <div class="export-cover-field">
+      <div class="export-cover-heading"><strong>项目封面</strong><small>默认使用第一篇文章的第一张图片，也可以上传自定义封面；仅保存到项目资源目录，不放入 PDF。</small></div>
+      <div class="export-cover-control">
+        <div id="exportCoverPreview" class="export-cover-preview"><span>暂无封面</span></div>
+        <div class="export-cover-actions">
+          <input id="exportCoverFile" type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+          <button id="uploadExportCoverBtn" type="button">上传封面</button>
+          <button id="resetExportCoverBtn" type="button" hidden>恢复默认</button>
+          <small id="exportCoverStatus">仅保存到项目资源目录</small>
+        </div>
+      </div>
+    </div>
     <label class="export-source-option" for="includeSources">
       <input id="includeSources" type="checkbox">
       <span><strong>导出信息源</strong><small>勾选后在终稿末尾附带原文链接，默认不导出。</small></span>

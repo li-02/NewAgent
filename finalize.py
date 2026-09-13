@@ -11,8 +11,9 @@ Web 端（webui.py）复用 parse_draft_text / build_final 完成同样的装配
 - 终稿按选定顺序重新编号 #1..#N；概览可选，默认不导出；
 - 正文条目不带链接块（草稿里保留链接块是为了截图时对照原文），
   所有信息源统一放到文末「🔗 信息源」小节；
-- 已含图片（用户手动插入的 ![[ ]] 或 ![]()）的条目保留图片；
-  未粘贴图片的条目在终稿中不输出空白图片占位符。
+- 条目开头的引用摘要（TLDR 引言块）不导出到终稿；
+- 已含图片（用户手动插入的 ![[ ]] 或 ![]()）的条目保留图片，并统一移到条目开头
+  （先图后文）；未粘贴图片的条目在终稿中不输出空白图片占位符。
 """
 from __future__ import annotations
 
@@ -137,12 +138,13 @@ def last_fence_start(lines: list[str]) -> int | None:
 
 
 def insert_placeholder(lines: list[str], ph: list[str]) -> list[str]:
-    idx = last_fence_start(lines)
-    if idx is None:
-        return lines + [""] + ph
-    while idx > 0 and lines[idx - 1].strip() == "":
-        idx -= 1
-    return lines[:idx] + ph + [""] + lines[idx:]
+    """把图片区域插在条目标题之后（先图后文）；lines[0] 为条目标题行。"""
+    if not lines:
+        return list(ph)
+    rest = lines[1:]
+    while rest and not rest[0].strip():
+        rest.pop(0)
+    return lines[:1] + [""] + ph + [""] + rest
 
 
 def next_path(base: Path) -> Path:
@@ -155,11 +157,37 @@ def next_path(base: Path) -> Path:
     return base.with_name(f"{base.stem}-{n}{base.suffix}")
 
 
-def has_user_image(block: list[str]) -> bool:
-    return any(
-        ln.lstrip().startswith("![[") or re.match(r"!\[[^\]]*\]\(", ln.lstrip())
-        for ln in block
-    )
+def is_pending_shot(line: str) -> bool:
+    return "待补充截图" in line
+
+
+def split_images(body: list[str]) -> tuple[list[str], list[str]]:
+    """先图后文：抽出正文中的真实图片行（剔除待补充占位），文本行清理首尾空行。"""
+    images: list[str] = []
+    text: list[str] = []
+    for ln in body:
+        s = ln.strip()
+        if s.startswith("![[") or re.match(r"!\[[^\]]*\]\(", s):
+            if not is_pending_shot(s):
+                images.append(s)
+        else:
+            text.append(ln)
+    while text and not text[0].strip():
+        text.pop(0)
+    while text and not text[-1].strip():
+        text.pop()
+    return images, text
+
+
+def strip_leading_quote(lines: list[str]) -> list[str]:
+    """删除条目开头的引用摘要（> 引言块）。"""
+    idx = 0
+    while idx < len(lines) and not lines[idx].strip():
+        idx += 1
+    end = idx
+    while end < len(lines) and lines[end].lstrip().startswith(">"):
+        end += 1
+    return lines[end:] if end > idx else lines
 
 
 def display_date(date_str: str) -> str:
@@ -219,13 +247,12 @@ def build_final(
     include_sources: bool = False,
     include_overview: bool = False,
 ) -> tuple[str, list[dict]]:
-    """按 picks 顺序装配终稿（条目文字原样保留，重新编号 #1..#N）。
+    """按 picks 顺序装配终稿（条目文字原样保留，重新编号 #1..#N；先图后文，去掉开头引用摘要）。
     返回 (markdown 文本, rebuilt 元信息列表)。"""
     picked = [n for n in picks if n in blocks]
     if asset_root is None:
         asset_root = ROOT / "output" / date_str
     out_lines = [f"# {normalize_final_title(title, date_str)}", ""]
-
     rebuilt = []
     for new_no, old_no in enumerate(picked, 1):
         info = overview.get(old_no, {})
@@ -234,16 +261,14 @@ def build_final(
         source_image = existing_image(blocks[old_no], asset_root)
         blk = strip_placeholder(blocks[old_no])
         links = link_fence(blk)
-        body = strip_link_fence(blk[1:])  # 去标题行 + 去链接块
-        while body and not body[0].strip():
-            body.pop(0)
-        img = has_user_image(body)
-        if source_image and not img:
-            body += ["", source_image[0].lstrip()]
-            img = True
+        body = strip_leading_quote(strip_link_fence(blk[1:]))  # 去标题行 + 去链接块 + 去开头引用摘要
+        images, text = split_images(body)  # 先图后文
+        if not images and source_image:
+            images = [source_image[0].lstrip()]
+        lines = (images + [""] + text) if images else text
         rebuilt.append({
             "no": new_no, "old_no": old_no, "title": title, "cat": cat,
-            "lines": body, "links": links, "has_img": img,
+            "lines": lines, "links": links, "has_img": bool(images),
             # 草稿中的空图片槽位只服务于审核界面，终稿不输出不存在的图片链接。
             "shot": "",
         })
@@ -258,8 +283,10 @@ def build_final(
 
     for r in rebuilt:
         out_lines += [f"## {r['title']} `#{r['no']}`", ""]
-        out_lines += r["lines"]
-        out_lines += ["", "---", ""]
+        if r["lines"]:
+            out_lines += r["lines"]
+            out_lines.append("")
+        out_lines += ["---", ""]
 
     if include_sources:
         # 正文条目不携带链接块；需要时将信息源统一放在文末。
@@ -275,7 +302,7 @@ def build_final(
 
 
 def build_single(overview: dict, blocks: dict, no: int, date_str: str):
-    """单条导出：只取一条，轻量结构（标题 + 正文 + 占位 + 来源）。
+    """单条导出：只取一条，轻量结构（标题 + 图片 + 正文 + 来源，先图后文）。
     返回 (markdown, 元信息)；编号不存在时返回 (None, None)。"""
     if no not in blocks:
         return None, None
@@ -283,28 +310,30 @@ def build_single(overview: dict, blocks: dict, no: int, date_str: str):
     title = info.get("ov_title") or f"条目{no}"
     blk = strip_placeholder(blocks[no])
     links = link_fence(blk)
-    body = strip_link_fence(blk[1:])
-    while body and not body[0].strip():
-        body.pop(0)
-    img = has_user_image(body)
-    shot = "" if img else f"assets/{date_str}/single-{no:02d}-{slugify(title)}.jpg"
+    images, text = split_images(strip_leading_quote(strip_link_fence(blk[1:])))
+    shot = "" if images else f"assets/{date_str}/single-{no:02d}-{slugify(title)}.jpg"
 
     out = [f"# {title}", ""]
-    out += body
-    if shot:
+    if images:  # 先图后文
+        out += images + [""]
+    elif shot:
         desc = title[:50]
         out += [
-            "",
             f"<!-- 📷 截图占位 | {desc}",
             f"     操作：打开原文链接，截取页面首屏，保存为 output/{date_str}/{shot} -->",
             f"![待补充截图：{desc}]({shot})",
+            "",
         ]
+    out += text
     if links:
         out += ["", "**🔗 来源**", ""] + [f"- {u}" for u in links]
     return "\n".join(out).rstrip() + "\n", {"title": title, "links": links, "shot": shot}
 
 
 def main() -> int:
+    # 延迟导入避免 article_archive 复用本模块解析器时形成模块级循环依赖。
+    from src.article_archive import record_export
+
     ap = argparse.ArgumentParser(description="从当日草稿挑条目生成终稿")
     ap.add_argument("picks", nargs="*", type=int, help="草稿概览中的条目编号，按终稿顺序给出")
     ap.add_argument("--single", type=int, default=None, help="单条导出：只导出指定编号的一条")
@@ -335,6 +364,10 @@ def main() -> int:
             out = next_path(date_dir / f"AI早报-{args.date}-单条-{args.single}.md")
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(md, encoding="utf-8")
+        record_export(
+            args.date, overview, blocks, [args.single], out.name,
+            ROOT / "data" / "article-archive",
+        )
         print(f"单条已导出：{out}\n  {meta['title']}")
         return 0
 
@@ -356,6 +389,10 @@ def main() -> int:
     out.parent.mkdir(parents=True, exist_ok=True)
     (out.parent / "assets" / args.date).mkdir(parents=True, exist_ok=True)
     out.write_text(md, encoding="utf-8")
+    record_export(
+        args.date, overview, blocks, args.picks, out.name,
+        ROOT / "data" / "article-archive",
+    )
 
     print(f"终稿已生成：{out}")
     print("已选条目：")

@@ -1,7 +1,13 @@
 from __future__ import annotations
 
 import unittest
+import json
+import sys
+import tempfile
+from pathlib import Path
+from unittest.mock import patch
 
+import finalize
 from finalize import build_final
 
 
@@ -75,6 +81,27 @@ class FinalizeTests(unittest.TestCase):
 
         self.assertIn("## 🔗 信息源", result)
         self.assertIn("- https://example.com/news", result)
+
+    def test_cli_export_records_article_as_exported(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            date = "2026-09-09"
+            date_dir = root / "output" / date
+            date_dir.mkdir(parents=True)
+            (date_dir / f"AI早报-{date}.md").write_text(
+                "## 概览\n\n### 要闻\n\n- 测试资讯 `#1`\n\n"
+                "## 测试资讯 `#1`\n\n正文\n\n```text\nhttps://example.com/news\n```\n",
+                encoding="utf-8",
+            )
+            with patch.object(finalize, "ROOT", root), patch.object(
+                sys, "argv", ["finalize.py", "1", "--date", date]
+            ):
+                code = finalize.main()
+
+            ledger = json.loads((root / "data" / "article-archive" / "exported.json").read_text(encoding="utf-8"))
+            self.assertEqual(code, 0)
+            self.assertEqual(ledger["exports"][0]["date"], date)
+            self.assertEqual(len(ledger["exports"][0]["article_keys"]), 1)
 
 
 if __name__ == "__main__":

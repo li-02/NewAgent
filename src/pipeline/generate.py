@@ -1,5 +1,5 @@
 """成稿：LLM 逐条撰写（TLDR + 短段落正文 + 分类判断），代码负责装配《AI 早报》版式：
-概览（按分类分组、#N 编号）→ 编号条目小节（引用摘要 + 短段落正文 + 截图占位 + 链接块）。
+概览（按分类分组、#N 编号）→ 编号条目小节（截图占位 + 短段落正文 + 链接块，先图后文）。
 无 API key 或解析失败时，退化为同版式的摘要版。"""
 from __future__ import annotations
 
@@ -272,11 +272,7 @@ def assemble_digest(parsed: list[dict], items: list[dict], date_str: str) -> str
 
     for e in entries:
         lines += [f"## {e['title']} `#{e['no']}`", ""]
-        if e["tldr"]:
-            lines += [f"> {e['tldr']}", ""]
-        if e["body"]:
-            lines += [e["body"], ""]
-        if e["screenshot_path"]:
+        if e["screenshot_path"]:  # 先图后文：截图占位紧跟标题
             lines += [
                 PLACEHOLDER_TMPL.format(
                     path=e["screenshot_path"], date=date_str,
@@ -284,6 +280,8 @@ def assemble_digest(parsed: list[dict], items: list[dict], date_str: str) -> str
                 ),
                 "",
             ]
+        if e["body"]:
+            lines += [e["body"], ""]
         if e["links"]:
             lines += ["```"] + e["links"] + ["```", ""]
         lines += ["---", ""]

@@ -7,6 +7,11 @@ let previewTimer = null;
 let runPollTimer = null;
 let runWasActive = false;
 let exportOrder = [];
+let exportCoverPath = null;
+let exportCoverCustom = false;
+let carryoverItems = [];
+let carryoverSourceDate = null;
+let carryoverPicks = new Set();
 let runLogVisible = false;
 let draftDirty = false;
 function markDraftDirty() { draftDirty = true; const el = $("#draftState"); if (el) { el.textContent = "● 未保存"; el.classList.add("dirty"); } if (date) localStorage.setItem(`ai-daily-draft:${date}`, $("#editor").value); }
@@ -86,17 +91,27 @@ function renderItems() {
           <input type="checkbox" ${picks.has(it.no) ? "checked" : ""}>
         </label>
         <span class="no">#${it.no}</span>
-        <button class="jump-btn" title="跳转到 #${it.no}">跳转</button>
         <span class="cat">${it.category}</span>
         <span class="t">${it.has_img ? "🖼 " : ""}${it.title}</span>
         <button class="single-btn" title="单条导出：只导出这一条">⬇</button>`;
+      row.title = `点击跳转到 #${it.no}`;
+      row.addEventListener("click", (e) => {
+        if (e.target.closest(".item-check, .source-link, .single-btn")) return;
+        jumpToItem(it.no);
+      });
       row.querySelector("input").addEventListener("change", (e) => {
         e.target.checked ? picks.add(it.no) : picks.delete(it.no);
       });
-      row.querySelector(".jump-btn").addEventListener("click", (e) => {
-        e.preventDefault();
-        jumpToItem(it.no);
-      });
+      if (it.links?.length) {
+        const sourceLink = document.createElement("a");
+        sourceLink.className = "source-link";
+        sourceLink.href = it.links[0];
+        sourceLink.target = "_blank";
+        sourceLink.rel = "noopener noreferrer";
+        sourceLink.textContent = "原文";
+        sourceLink.title = "打开原文链接";
+        row.querySelector(".t").insertAdjacentElement("afterend", sourceLink);
+      }
       row.querySelector(".single-btn").addEventListener("click", async (e) => {
         e.preventDefault();
         status(`单条导出中（#${it.no}）…`);
@@ -111,6 +126,43 @@ function renderItems() {
   renderImageShelf();
 }
 
+function renderCarryover() {
+  const panel = $("#carryoverPanel");
+  panel.hidden = !carryoverItems.length;
+  if (!carryoverItems.length) return;
+  $("#carryoverTitle").textContent = `${carryoverSourceDate} 未导出（${carryoverItems.length}）`;
+  const list = $("#carryoverList");
+  list.innerHTML = "";
+  for (const item of carryoverItems) {
+    const row = document.createElement("label");
+    row.className = "carryover-item";
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.checked = carryoverPicks.has(item.key);
+    input.addEventListener("change", () => {
+      input.checked ? carryoverPicks.add(item.key) : carryoverPicks.delete(item.key);
+      $("#addCarryoverBtn").disabled = !carryoverPicks.size;
+    });
+    const cat = document.createElement("span");
+    cat.className = "cat";
+    cat.textContent = item.category;
+    const title = document.createElement("span");
+    title.className = "t";
+    title.textContent = `${item.has_img ? "🖼 " : ""}${item.title}`;
+    row.append(input, cat, title);
+    list.appendChild(row);
+  }
+  $("#addCarryoverBtn").disabled = !carryoverPicks.size;
+}
+
+async function loadCarryover() {
+  const result = await api(`/api/carryover?date=${encodeURIComponent(date)}`);
+  carryoverItems = result.ok ? (result.items || []) : [];
+  carryoverSourceDate = result.source_date || null;
+  carryoverPicks = new Set();
+  renderCarryover();
+}
+
 function renderImageShelf() {
   const shelf = $("#imageShelf");
   // Every article gets a slot. A pre-generated Markdown placeholder is optional:
@@ -118,6 +170,8 @@ function renderImageShelf() {
   const imageItems = items;
   shelf.innerHTML = "";
   shelf.hidden = !imageItems.length;
+  const shelfSplitter = $("#shelfSplitter");
+  if (shelfSplitter) shelfSplitter.hidden = shelf.hidden;
   if (!imageItems.length) return;
 
   const head = document.createElement("div");
@@ -371,7 +425,20 @@ function moveExportItem(from, to) {
   if (from === to || from < 0 || to < 0 || from >= exportOrder.length || to >= exportOrder.length) return;
   const [moved] = exportOrder.splice(from, 1);
   exportOrder.splice(to, 0, moved);
+  if (!exportCoverCustom) exportCoverPath = exportOrder[0]?.image_path || null;
   renderExportPreview();
+}
+
+function renderExportCover() {
+  const preview = $("#exportCoverPreview");
+  const path = exportCoverPath;
+  preview.innerHTML = path
+    ? `<img src="${resolveOutputAsset(path)}" alt="导出封面预览">`
+    : "<span>暂无可用图片</span>";
+  $("#exportCoverStatus").textContent = path
+    ? (exportCoverCustom ? "已上传并自动保存" : "默认取第一篇文章的第一张图片")
+    : "第一篇文章暂无图片，可上传封面";
+  $("#resetExportCoverBtn").hidden = !exportCoverCustom;
 }
 
 function renderExportPreview() {
@@ -412,9 +479,10 @@ function renderExportPreview() {
       e.preventDefault();
       card.classList.remove("drag-over");
       moveExportItem(Number(e.dataTransfer.getData("text/plain")), index);
-    });
-    list.appendChild(card);
   });
+  list.appendChild(card);
+  });
+  renderExportCover();
   $("#exportPreviewCount").textContent = `共 ${exportOrder.length} 条 · 拖动后将按 1–${exportOrder.length} 重新编号`;
 }
 
@@ -430,6 +498,8 @@ async function openExportPreview() {
     status("请先在左侧勾选要编入终稿的条目", true);
     return;
   }
+  exportCoverCustom = false;
+  exportCoverPath = exportOrder[0]?.image_path || null;
   renderExportPreview();
   let warnings = [];
   try {
@@ -464,6 +534,7 @@ async function confirmExport() {
     const r = await api("/api/export", {
       date, picks: orderedPicks, title,
       include_sources: includeSources, include_overview: includeOverview,
+      cover_path: exportCoverPath,
     });
     if (!r.ok) { status(r.error || "导出失败", true); return; }
     closeExportPreview();
@@ -478,6 +549,27 @@ async function confirmExport() {
   }
 }
 
+$("#uploadExportCoverBtn").addEventListener("click", () => $("#exportCoverFile").click());
+$("#exportCoverFile").addEventListener("change", async (event) => {
+  const file = event.target.files?.[0];
+  event.target.value = "";
+  if (!file) return;
+  try {
+    status("正在保存导出封面…");
+    const r = await api("/api/export-cover", { date, data: await fileToDataUrl(file) });
+    if (!r.ok) { status(r.error || "封面上传失败", true); return; }
+    exportCoverPath = r.path;
+    exportCoverCustom = true;
+    renderExportCover();
+    status("✅ 导出封面已自动保存");
+  } catch (error) { status(`封面上传失败：${error.message}`, true); }
+});
+$("#resetExportCoverBtn").addEventListener("click", () => {
+  exportCoverCustom = false;
+  exportCoverPath = exportOrder[0]?.image_path || null;
+  renderExportCover();
+});
+
 async function loadState(d) {
   const st = await api("/api/state" + (d ? `?date=${encodeURIComponent(d)}` : ""));
   date = st.date;
@@ -490,6 +582,7 @@ async function loadState(d) {
   picks = new Set(items.map((i) => i.no)); // 默认全选
   renderItems();
   renderPreview();
+  await loadCarryover();
   $("#finalLink").innerHTML = st.final_exists
     ? `<a href="${outputUrl(st.final_path || `${date}/${st.final_name}`)}" target="_blank">已有终稿 ↗</a>` : "";
   if (!st.content) status("该日期没有草稿：先运行 run.bat 生成，或直接粘贴内容后保存");
@@ -502,9 +595,27 @@ async function save() {
   items = r.items || items;
   renderItems();
   renderPreview();
+  await loadCarryover();
   markDraftSaved();
   status("✅ 已保存 ✓ " + new Date().toLocaleTimeString());
 }
+
+$("#addCarryoverBtn").addEventListener("click", async () => {
+  if (!carryoverPicks.size) return;
+  status("正在加入昨日文章…");
+  const result = await api("/api/carryover", {
+    date, source_date: carryoverSourceDate, keys: [...carryoverPicks],
+  });
+  if (!result.ok) { status(result.error || "加入昨日文章失败", true); return; }
+  $("#editor").value = stripTitleNumbers(result.content || "");
+  items = result.items || [];
+  picks = new Set(items.map((item) => item.no));
+  renderItems();
+  renderPreview();
+  markDraftSaved();
+  await loadCarryover();
+  status(result.added ? `✅ 已加入 ${result.added} 篇昨日文章` : "所选文章已在今天草稿中");
+});
 
 // 编辑 → 防抖预览
 $("#editor").addEventListener("input", () => {
@@ -568,6 +679,8 @@ $("#toggleEditorBtn").addEventListener("click", () => {
   const btn = $("#toggleEditorBtn");
   btn.textContent = expanded ? "✏ 隐藏编辑区" : "✏ 展开编辑区";
   btn.setAttribute("aria-expanded", String(expanded));
+  const editorSplitter = $("#editorSplitter");
+  if (editorSplitter) editorSplitter.hidden = editor.hidden;
   if (expanded) editor.focus();
 });
 
@@ -752,6 +865,68 @@ async function copyPublishHtml() {
 }
 
 $("#copyFinalBtn").addEventListener("click", copyPublishHtml);
+
+/* ── 区域宽度自由调整：条目选择区 / 截图区 / 编辑区三条拖拽分隔条，宽度记入 localStorage ── */
+const LAYOUT_KEY = "ai-daily-layout-v1";
+const DEFAULT_LAYOUT = { aside: 300, shelf: 250, editor: 50 };
+let layout = { ...DEFAULT_LAYOUT };
+try { Object.assign(layout, JSON.parse(localStorage.getItem(LAYOUT_KEY) || "{}")); } catch { /* 忽略损坏的历史配置 */ }
+const clampWidth = (v, lo, hi) => Math.round(Math.min(Math.max(v, lo), hi));
+
+function applyLayout() {
+  const root = document.documentElement.style;
+  root.setProperty("--aside-w", `${clampWidth(layout.aside, 160, window.innerWidth * .6)}px`);
+  root.setProperty("--shelf-w", `${clampWidth(layout.shelf, 140, window.innerWidth * .5)}px`);
+  root.setProperty("--editor-w", `${clampWidth(layout.editor, 15, 85)}%`);
+}
+function saveLayout() { localStorage.setItem(LAYOUT_KEY, JSON.stringify(layout)); }
+
+function setupSplitter(el, { begin, update, reset }) {
+  if (!el) return;
+  el.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const start = begin();
+    try { el.setPointerCapture(e.pointerId); } catch { /* 合成事件没有活动指针，忽略 */ }
+    el.classList.add("dragging");
+    document.body.classList.add("col-resizing");
+    const move = (ev) => update(start, ev.clientX - startX);
+    const up = () => {
+      el.classList.remove("dragging");
+      document.body.classList.remove("col-resizing");
+      el.removeEventListener("pointermove", move);
+      el.removeEventListener("pointerup", up);
+      el.removeEventListener("pointercancel", up);
+      saveLayout();
+    };
+    el.addEventListener("pointermove", move);
+    el.addEventListener("pointerup", up);
+    el.addEventListener("pointercancel", up);
+  });
+  el.addEventListener("dblclick", () => { reset(); applyLayout(); saveLayout(); });
+}
+
+applyLayout();
+window.addEventListener("resize", applyLayout);
+setupSplitter($("#asideSplitter"), {
+  begin: () => layout.aside,
+  update: (s, dx) => { layout.aside = s + dx; applyLayout(); },
+  reset: () => { layout.aside = DEFAULT_LAYOUT.aside; },
+});
+setupSplitter($("#shelfSplitter"), {
+  begin: () => layout.shelf,
+  update: (s, dx) => { layout.shelf = s + dx; applyLayout(); },
+  reset: () => { layout.shelf = DEFAULT_LAYOUT.shelf; },
+});
+setupSplitter($("#editorSplitter"), {
+  begin: () => layout.editor,
+  update: (s, dx) => {
+    const panesWidth = $("#panes").getBoundingClientRect().width || 1;
+    layout.editor = s + (dx / panesWidth) * 100; applyLayout();
+  },
+  reset: () => { layout.editor = DEFAULT_LAYOUT.editor; },
+});
+$("#editorSplitter").hidden = $("#editor").hidden;
 
 loadState();
 pollRunState();
