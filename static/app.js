@@ -608,8 +608,14 @@ $("#addCarryoverBtn").addEventListener("click", async () => {
   });
   if (!result.ok) { status(result.error || "加入昨日文章失败", true); return; }
   $("#editor").value = stripTitleNumbers(result.content || "");
+  const previousNos = new Set(items.map((item) => item.no));
   items = result.items || [];
-  picks = new Set(items.map((item) => item.no));
+  const currentNos = new Set(items.map((item) => item.no));
+  // 补选只追加编号，不改动已有条目的勾选，否则会覆盖用户之前的筛选结果
+  picks = new Set([...picks].filter((no) => currentNos.has(no)));
+  if (result.added) {
+    for (const no of currentNos) if (!previousNos.has(no)) picks.add(no);
+  }
   renderItems();
   renderPreview();
   markDraftSaved();
