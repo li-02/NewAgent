@@ -1,361 +1,341 @@
-# ===== 数据源配置 =====
-# type: rss（通用 RSS/Atom）| hackernews（HN 官方 API）| changelog | html_updates
-# weight: 官方源权重，排序时作为加分项
-# category: news（默认）| paper（归入"论文与开源"小节）
-# 加新源：追加一个条目即可，不用改代码
-
 sources:
-  - name: OpenAI News
-    type: rss
-    url: https://openai.com/news/rss.xml
-    weight: 3
-
-  - name: Google DeepMind Blog
-    type: rss
-    url: https://deepmind.google/blog/rss.xml
-    weight: 3
-
-  - name: TechCrunch AI
-    type: rss
-    url: https://techcrunch.com/category/artificial-intelligence/feed/
-    weight: 1
-
-  - name: The Verge AI
-    type: rss
-    url: https://www.theverge.com/rss/ai-artificial-intelligence/index.xml
-    weight: 1
-
-  - name: Hacker News
-    type: hackernews
-    min_score: 150
-    weight: 1
-    category: community
-    require_ai: true   # HN 是综合热榜，只保留 AI 相关条目
-
-  - name: NVIDIA Blog
-    type: rss
-    url: https://blogs.nvidia.com/feed/
-    weight: 2
-
-  - name: Microsoft Research
-    type: rss
-    url: https://www.microsoft.com/en-us/research/feed/
-    weight: 2
-
-  - name: VentureBeat AI
-    type: rss
-    url: https://venturebeat.com/category/ai/feed/
-    weight: 1
-
-  # 补充高频 AI 资讯与技术媒体；媒体源保持低权重，避免压过官方公告。
-  - name: Ars Technica AI
-    type: rss
-    url: https://arstechnica.com/ai/feed/
-    weight: 1
-
-  - name: The Decoder
-    type: rss
-    url: https://the-decoder.com/feed/
-    require_ai: true
-    weight: 1
-
-  - name: InfoQ AI/ML
-    type: rss
-    url: https://feed.infoq.com/ai-ml-data-eng/
-    require_ai: true
-    weight: 1
-    category: dev
-
-  - name: 量子位
-    type: rss
-    url: https://www.qbitai.com/feed
-    weight: 1
-
-  # 官方研究、开源社区与 AI 基础设施博客。
-  - name: Hugging Face Blog
-    type: rss
-    url: https://huggingface.co/blog/feed.xml
-    weight: 2
-
-  - name: Google Research
-    type: rss
-    url: https://research.google/blog/rss/
-    weight: 3
-    category: paper
-
-  - name: Apple ML Research
-    type: rss
-    url: https://machinelearning.apple.com/rss.xml
-    weight: 3
-    category: paper
-
-  - name: AWS AI Blog
-    type: rss
-    url: https://aws.amazon.com/blogs/machine-learning/feed/
-    weight: 2
-    category: dev
-
-  - name: Cloudflare AI
-    type: rss
-    url: https://blog.cloudflare.com/tag/ai/rss/
-    weight: 2
-    category: dev
-
-  - name: GitHub Changelog AI
-    type: rss
-    url: https://github.blog/changelog/feed/
-    require_ai: true
-    weight: 2
-    category: dev
-
-  - name: Claude Code
-    type: changelog
-    format: markdown
-    url: https://raw.githubusercontent.com/anthropics/claude-code/main/CHANGELOG.md
-    link_base: https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md
-    item_limit: 5
-    weight: 3
-    category: dev
-
-  - name: 智谱 AI
-    type: html_updates
-    site: zhipu
-    url: https://docs.bigmodel.cn/cn/update/new-releases
-    weight: 3
-
-  - name: 阿里千问
-    type: html_updates
-    site: qwen
-    url: https://qwen.ai/news
-    code: news.news-list
-    weight: 3
-
-  - name: 腾讯 WorkBuddy
-    type: html_updates
-    site: workbuddy
-    url: https://www.workbuddy.cn/docs/workbuddy/Changelog
-    weight: 3
-    category: dev
-
-  - name: 阿里 Qoder
-    type: html_updates
-    site: qoder
-    url: https://docs.qoder.com/zh/release-notes/qoder
-    weight: 3
-    category: dev
-
-  - name: Kimi
-    type: html_updates
-    site: moonshot
-    url: https://www.moonshot.cn/
-    weight: 3
-
-  - name: DeepSeek News
-    type: html_updates
-    site: deepseek
-    url: https://deepseek.com/en/news/
-    weight: 3
-
-  - name: DeepSeek API
-    type: html_updates
-    site: deepseek
-    url: https://api-docs.deepseek.com/updates/
-    weight: 3
-    category: dev
-
-  # 官方产品与研究发布；产品博客不能由研究博客替代。
-  - name: Google 产品博客
-    type: rss
-    url: https://blog.google/rss/
-    require_ai: true
-    weight: 3
-
-  - name: Microsoft AI
-    type: article_index
-    url: https://microsoft.ai/news/
-    link_pattern: '^https://microsoft\.ai/news/[^/?]+/?$'
-    weight: 3
-
-  - name: Microsoft Foundry
-    type: rss
-    url: https://techcommunity.microsoft.com/t5/s/gxcuf89792/rss/board?board.id=azure-ai-foundry-blog
-    weight: 3
-
-  - name: Meta AI Research
-    type: article_index
-    url: https://research.meta.ai/blog/
-    link_pattern: '^https://research\.meta\.ai/blog/[^/?]+/?$'
-    weight: 3
-
-  # 首次抓取只建立正文基线，之后的变化使用“首次检测时间”。
-  - name: OpenAI 模型与额度说明
-    type: page_watch
-    url: https://help.openai.com/en/articles/20001354
-    category: product
-    weight: 3
-
-  - name: OpenAI Business 模型与额度
-    type: page_watch
-    url: https://help.openai.com/en/articles/12003714-chatgpt-team-models-limits
-    category: product
-    weight: 3
-
-  - name: OpenAI Work 与 Codex 额度
-    type: page_watch
-    url: https://help.openai.com/en/articles/20001275
-    category: product
-    weight: 3
-
-  - name: Codex 桌面端更新
-    type: page_watch
-    url: https://developers.openai.com/codex/changelog/
-    category: dev
-    weight: 3
-
-  - name: Codex GitHub Releases
-    type: rss
-    url: https://github.com/openai/codex/releases.atom
-    category: dev
-    weight: 3
-
-  - name: Claude Max 额度说明
-    type: page_watch
-    url: https://support.claude.com/en/articles/11049741-what-is-the-max-plan
-    category: product
-    weight: 3
-
-  - name: OpenCode Go 模型与额度
-    type: page_watch
-    url: https://opencode.ai/docs/go/
-    category: dev
-    weight: 3
-
-  - name: OpenCode Releases
-    type: rss
-    url: https://github.com/anomalyco/opencode/releases.atom
-    category: dev
-    weight: 3
-
-  # 主流 AI 开发框架发布；不接入高频逐构建/nightly 源。
-  - name: LangChain Releases
-    type: rss
-    url: https://github.com/langchain-ai/langchain/releases.atom
-    category: dev
-    weight: 2
-
-  - name: LlamaIndex Releases
-    type: rss
-    url: https://github.com/run-llama/llama_index/releases.atom
-    category: dev
-    weight: 2
-
-  - name: vLLM Releases
-    type: rss
-    url: https://github.com/vllm-project/vllm/releases.atom
-    category: dev
-    weight: 2
-
-  - name: Transformers Releases
-    type: rss
-    url: https://github.com/huggingface/transformers/releases.atom
-    category: dev
-    weight: 2
-
-  - name: Ollama Releases
-    type: rss
-    url: https://github.com/ollama/ollama/releases.atom
-    category: dev
-    weight: 2
-
-  - name: MCP Python SDK Releases
-    type: rss
-    url: https://github.com/modelcontextprotocol/python-sdk/releases.atom
-    category: dev
-    weight: 2
-
-  - name: Qoder 千问夜间优惠
-    type: page_watch
-    url: https://docs.qoder.cn/en/product-overview/qwen-3-7-series-model-staggering-discount
-    category: dev
-    weight: 3
-
-  - name: 百灵开发者文档
-    type: page_watch
-    url: https://developer.ant-ling.com/zh-CN/docs/
-    weight: 3
-
-  - name: 百灵多模态文档
-    type: page_watch
-    url: https://developer.ant-ling.com/zh-CN/docs/tutorials/multimodal-understanding/
-    weight: 3
-
-  - name: inclusionAI Hugging Face
-    type: huggingface
-    url: https://huggingface.co/inclusionAI
-    category: paper
-    weight: 3
-
-  - name: inclusionAI GitHub
-    type: github_org
-    url: https://github.com/inclusionAI
-    category: paper
-    weight: 3
-
-  - name: inclusionAI 模型服务目录
-    type: model_catalog
-    url: https://openrouter.ai/api/v1/models
-    code: inclusionai/
-    weight: 2
-
-  # 社区消息是线索，成稿保留用户报告口径，不视为官方确认。
-  - name: Reddit ClaudeAI
-    type: rss
-    url: https://www.reddit.com/r/ClaudeAI/new/.rss
-    category: community
-    weight: 1
-    enabled: false
-
-  - name: Reddit LocalLLaMA
-    type: rss
-    url: https://www.reddit.com/r/LocalLLaMA/new/.rss
-    category: community
-    weight: 1
-    enabled: false
-
-  - name: Reddit OpenCode
-    type: rss
-    url: https://www.reddit.com/r/opencode/new/.rss
-    category: community
-    weight: 1
-    enabled: false
-
-  # 配置 X_BEARER_TOKEN 且账号具有用户时间线 API 权限后，在设置中启用。
-  - name: OpenAI 官方 X
-    type: x_account
-    url: https://x.com/OpenAI
-    enabled: false
-    weight: 3
-
-  - name: Claude 官方 X
-    type: x_account
-    url: https://x.com/claudeai
-    enabled: false
-    weight: 3
-
-  - name: Google DeepMind 官方 X
-    type: x_account
-    url: https://x.com/GoogleDeepMind
-    enabled: false
-    weight: 3
-
-  - name: Meta AI 官方 X
-    type: x_account
-    url: https://x.com/AIatMeta
-    enabled: false
-    weight: 3
-
-  - name: 百灵官方 X
-    type: x_account
-    url: https://x.com/AntLingAGI
-    enabled: false
-    weight: 3
+- enabled: true
+  name: OpenAI News
+  type: rss
+  url: https://openai.com/news/rss.xml
+  weight: 3
+- enabled: true
+  name: Google DeepMind Blog
+  type: rss
+  url: https://deepmind.google/blog/rss.xml
+  weight: 3
+- enabled: true
+  name: TechCrunch AI
+  type: rss
+  url: https://techcrunch.com/category/artificial-intelligence/feed/
+  weight: 1
+- enabled: true
+  name: The Verge AI
+  type: rss
+  url: https://www.theverge.com/rss/ai-artificial-intelligence/index.xml
+  weight: 1
+- category: community
+  enabled: true
+  min_score: 150
+  name: Hacker News
+  require_ai: true
+  type: hackernews
+  weight: 1
+- enabled: true
+  name: NVIDIA Blog
+  type: rss
+  url: https://blogs.nvidia.com/feed/
+  weight: 2
+- enabled: true
+  name: Microsoft Research
+  type: rss
+  url: https://www.microsoft.com/en-us/research/feed/
+  weight: 2
+- enabled: true
+  name: VentureBeat AI
+  type: rss
+  url: https://venturebeat.com/category/ai/feed/
+  weight: 1
+- enabled: true
+  name: Ars Technica AI
+  type: rss
+  url: https://arstechnica.com/ai/feed/
+  weight: 1
+- enabled: true
+  name: The Decoder
+  require_ai: true
+  type: rss
+  url: https://the-decoder.com/feed/
+  weight: 1
+- category: dev
+  enabled: true
+  name: InfoQ AI/ML
+  require_ai: true
+  type: rss
+  url: https://feed.infoq.com/ai-ml-data-eng/
+  weight: 1
+- enabled: true
+  name: 量子位
+  type: rss
+  url: https://www.qbitai.com/feed
+  weight: 1
+- enabled: false
+  name: Hugging Face Blog
+  type: rss
+  url: https://huggingface.co/blog/feed.xml
+  weight: 2
+- category: paper
+  enabled: true
+  name: Google Research
+  type: rss
+  url: https://research.google/blog/rss/
+  weight: 3
+- category: paper
+  enabled: true
+  name: Apple ML Research
+  type: rss
+  url: https://machinelearning.apple.com/rss.xml
+  weight: 3
+- category: dev
+  enabled: true
+  name: AWS AI Blog
+  type: rss
+  url: https://aws.amazon.com/blogs/machine-learning/feed/
+  weight: 2
+- category: dev
+  enabled: true
+  name: Cloudflare AI
+  type: rss
+  url: https://blog.cloudflare.com/tag/ai/rss/
+  weight: 2
+- category: dev
+  enabled: false
+  name: GitHub Changelog AI
+  require_ai: true
+  type: rss
+  url: https://github.blog/changelog/feed/
+  weight: 2
+- category: dev
+  enabled: true
+  format: markdown
+  item_limit: 5
+  link_base: https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md
+  name: Claude Code
+  type: changelog
+  url: https://raw.githubusercontent.com/anthropics/claude-code/main/CHANGELOG.md
+  weight: 3
+- enabled: true
+  name: 智谱 AI
+  site: zhipu
+  type: html_updates
+  url: https://docs.bigmodel.cn/cn/update/new-releases
+  weight: 3
+- code: news.news-list
+  enabled: true
+  name: 阿里千问
+  site: qwen
+  type: html_updates
+  url: https://qwen.ai/news
+  weight: 3
+- category: dev
+  enabled: true
+  name: 腾讯 WorkBuddy
+  site: workbuddy
+  type: html_updates
+  url: https://www.workbuddy.cn/docs/workbuddy/Changelog
+  weight: 3
+- category: dev
+  enabled: true
+  name: 阿里 Qoder
+  site: qoder
+  type: html_updates
+  url: https://docs.qoder.com/zh/release-notes/qoder
+  weight: 3
+- enabled: true
+  name: Kimi
+  site: moonshot
+  type: html_updates
+  url: https://www.moonshot.cn/
+  weight: 3
+- enabled: true
+  name: DeepSeek News
+  site: deepseek
+  type: html_updates
+  url: https://deepseek.com/en/news/
+  weight: 3
+- category: dev
+  enabled: true
+  name: DeepSeek API
+  site: deepseek
+  type: html_updates
+  url: https://api-docs.deepseek.com/updates/
+  weight: 3
+- enabled: true
+  name: Google 产品博客
+  require_ai: true
+  type: rss
+  url: https://blog.google/rss/
+  weight: 3
+- enabled: true
+  link_pattern: ^https://microsoft\.ai/news/[^/?]+/?$
+  name: Microsoft AI
+  type: article_index
+  url: https://microsoft.ai/news/
+  weight: 3
+- enabled: true
+  name: Microsoft Foundry
+  type: rss
+  url: https://techcommunity.microsoft.com/t5/s/gxcuf89792/rss/board?board.id=azure-ai-foundry-blog
+  weight: 3
+- enabled: true
+  link_pattern: ^https://research\.meta\.ai/blog/[^/?]+/?$
+  name: Meta AI Research
+  type: article_index
+  url: https://research.meta.ai/blog/
+  weight: 3
+- category: product
+  enabled: true
+  name: OpenAI 模型与额度说明
+  type: page_watch
+  url: https://help.openai.com/en/articles/20001354
+  weight: 3
+- category: product
+  enabled: true
+  name: OpenAI Business 模型与额度
+  type: page_watch
+  url: https://help.openai.com/en/articles/12003714-chatgpt-team-models-limits
+  weight: 3
+- category: product
+  enabled: true
+  name: OpenAI Work 与 Codex 额度
+  type: page_watch
+  url: https://help.openai.com/en/articles/20001275
+  weight: 3
+- category: dev
+  enabled: true
+  name: Codex 桌面端更新
+  type: page_watch
+  url: https://developers.openai.com/codex/changelog/
+  weight: 3
+- category: dev
+  enabled: true
+  name: Codex GitHub Releases
+  type: rss
+  url: https://github.com/openai/codex/releases.atom
+  weight: 3
+- category: product
+  enabled: true
+  name: Claude Max 额度说明
+  type: page_watch
+  url: https://support.claude.com/en/articles/11049741-what-is-the-max-plan
+  weight: 3
+- category: dev
+  enabled: true
+  name: OpenCode Go 模型与额度
+  type: page_watch
+  url: https://opencode.ai/docs/go/
+  weight: 3
+- category: dev
+  enabled: true
+  name: OpenCode Releases
+  type: rss
+  url: https://github.com/anomalyco/opencode/releases.atom
+  weight: 3
+- category: dev
+  enabled: true
+  name: LangChain Releases
+  type: rss
+  url: https://github.com/langchain-ai/langchain/releases.atom
+  weight: 2
+- category: dev
+  enabled: true
+  name: LlamaIndex Releases
+  type: rss
+  url: https://github.com/run-llama/llama_index/releases.atom
+  weight: 2
+- category: dev
+  enabled: true
+  name: vLLM Releases
+  type: rss
+  url: https://github.com/vllm-project/vllm/releases.atom
+  weight: 2
+- category: dev
+  enabled: true
+  name: Transformers Releases
+  type: rss
+  url: https://github.com/huggingface/transformers/releases.atom
+  weight: 2
+- category: dev
+  enabled: true
+  name: Ollama Releases
+  type: rss
+  url: https://github.com/ollama/ollama/releases.atom
+  weight: 2
+- category: dev
+  enabled: true
+  name: MCP Python SDK Releases
+  type: rss
+  url: https://github.com/modelcontextprotocol/python-sdk/releases.atom
+  weight: 2
+- category: dev
+  enabled: true
+  name: Qoder 千问夜间优惠
+  type: page_watch
+  url: https://docs.qoder.cn/en/product-overview/qwen-3-7-series-model-staggering-discount
+  weight: 3
+- enabled: true
+  name: 百灵开发者文档
+  type: page_watch
+  url: https://developer.ant-ling.com/zh-CN/docs/
+  weight: 3
+- enabled: true
+  name: 百灵多模态文档
+  type: page_watch
+  url: https://developer.ant-ling.com/zh-CN/docs/tutorials/multimodal-understanding/
+  weight: 3
+- category: paper
+  enabled: false
+  name: inclusionAI Hugging Face
+  type: huggingface
+  url: https://huggingface.co/inclusionAI
+  weight: 3
+- category: paper
+  enabled: false
+  name: inclusionAI GitHub
+  type: github_org
+  url: https://github.com/inclusionAI
+  weight: 3
+- code: inclusionai/
+  enabled: false
+  name: inclusionAI 模型服务目录
+  type: model_catalog
+  url: https://openrouter.ai/api/v1/models
+  weight: 2
+- category: community
+  enabled: false
+  name: Reddit ClaudeAI
+  type: rss
+  url: https://www.reddit.com/r/ClaudeAI/new/.rss
+  weight: 1
+- category: community
+  enabled: false
+  name: Reddit LocalLLaMA
+  type: rss
+  url: https://www.reddit.com/r/LocalLLaMA/new/.rss
+  weight: 1
+- category: community
+  enabled: false
+  name: Reddit OpenCode
+  type: rss
+  url: https://www.reddit.com/r/opencode/new/.rss
+  weight: 1
+- enabled: false
+  name: OpenAI 官方 X
+  type: x_account
+  url: https://x.com/OpenAI
+  weight: 3
+- enabled: false
+  name: Claude 官方 X
+  type: x_account
+  url: https://x.com/claudeai
+  weight: 3
+- enabled: false
+  name: Google DeepMind 官方 X
+  type: x_account
+  url: https://x.com/GoogleDeepMind
+  weight: 3
+- enabled: false
+  name: Meta AI 官方 X
+  type: x_account
+  url: https://x.com/AIatMeta
+  weight: 3
+- enabled: false
+  name: 百灵官方 X
+  type: x_account
+  url: https://x.com/AntLingAGI
+  weight: 3
