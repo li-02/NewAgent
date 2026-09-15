@@ -6,6 +6,10 @@ __pycache__/
 *.lnk
 *.crdownload
 
+# WebUI 保存配置时自动生成的时间戳备份（src/source_config.py）
+*.bak
+*.bak-*
+
 # Local runtime data and generated content
 data/
 logs/
