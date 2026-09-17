@@ -1,9 +1,31 @@
 import unittest
 
-from src.pipeline.rank import rank
+from src.pipeline.rank import rank, select_balanced
 
 
 class RankPreferenceTests(unittest.TestCase):
+    def test_technology_topics_are_ranked_above_unrelated_items(self):
+        items = [
+            {"title": "城市周末餐厅推荐", "summary": "美食与旅行", "weight": 1},
+            {"title": "新一代半导体芯片采用先进制程", "summary": "GPU 硬件正式发布", "weight": 1},
+        ]
+
+        ranked = rank(items)
+
+        self.assertEqual(ranked[0]["title"], "新一代半导体芯片采用先进制程")
+
+    def test_balanced_selection_reserves_space_for_available_sections(self):
+        items = [
+            {"title": "AI 1", "category": "ai", "score": 10},
+            {"title": "AI 2", "category": "ai", "score": 9},
+            {"title": "芯片", "category": "chips", "score": 8},
+            {"title": "机器人", "category": "frontier", "score": 7},
+        ]
+
+        selected = select_balanced(items, 3)
+
+        self.assertEqual([item["title"] for item in selected], ["AI 1", "芯片", "机器人"])
+
     def test_blocked_items_do_not_consume_top_n_after_filter(self):
         items = [
             {"title": "屏蔽消息", "summary": "noise", "weight": 1},

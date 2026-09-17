@@ -1,4 +1,4 @@
-"""AI 早报 · 本地 Web 控制中心
+"""科技日报 · 本地 Web 控制中心
 
 功能：手动采集/成稿、编辑草稿（实时预览）、截图 Ctrl+V 粘贴入库、
 勾选条目、一键导出终稿、复制发布版富文本。
@@ -54,15 +54,15 @@ ROOT = Path(__file__).parent
 OUTPUT = ROOT / "output"
 SOURCES_FILE = ROOT / "config" / "sources.yaml"
 CONFIG_FILE = ROOT / "config" / "config.yaml"
-DRAFT_RE = re.compile(r"^AI早报-(\d{4}-\d{2}-\d{2})\.md$")
-DRAFT_FILE_RE = re.compile(r"^AI早报-(\d{4}-\d{2}-\d{2})(?:-\d+)?\.md$")
-FINAL_FILE_RE = re.compile(r"^AI早报-(\d{4}-\d{2}-\d{2})-终稿(?:-\d+)?\.md$")
+DRAFT_RE = re.compile(r"^(?:科技日报|AI早报)-(\d{4}-\d{2}-\d{2})\.md$")
+DRAFT_FILE_RE = re.compile(r"^(?:科技日报|AI早报)-(\d{4}-\d{2}-\d{2})(?:-\d+)?\.md$")
+FINAL_FILE_RE = re.compile(r"^(?:科技日报|AI早报)-(\d{4}-\d{2}-\d{2})-终稿(?:-\d+)?\.md$")
 RUN_LOG_LIMIT = 300
 RUN_LOG_DIR = ROOT / "logs" / "webui"
 RUN_SUMMARY_FILE = ROOT / "logs" / "last-run.json"
 MAX_IMAGE_BYTES = 15 * 1024 * 1024
 ARTICLE_ARCHIVE = ROOT / "data" / "article-archive"
-DAILY_HEADING_RE = re.compile(r"^# AI 早报 \d{4}-\d{2}-\d{2}\s*\n+", re.M)
+DAILY_HEADING_RE = re.compile(r"^# (?:科技日报|AI 早报) \d{4}-\d{2}-\d{2}\s*\n+", re.M)
 AUDIT_CHECKLIST_RE = re.compile(
     r"^## ✅ 审核清单[^\n]*\n.*?(?=^---\s*$)",
     re.M | re.S,
@@ -91,16 +91,17 @@ def draft_path(date: str) -> Path:
             p for p in date_dir.iterdir()
             if p.is_file() and DRAFT_FILE_RE.match(p.name)
         )
-    legacy = OUTPUT / f"AI早报-{date}.md"
-    if legacy.exists():
-        candidates.append(legacy)
+    for legacy_name in (f"科技日报-{date}.md", f"AI早报-{date}.md"):
+        legacy = OUTPUT / legacy_name
+        if legacy.exists():
+            candidates.append(legacy)
     if candidates:
         return max(candidates, key=lambda p: p.stat().st_mtime)
-    return date_dir / f"AI早报-{date}.md"
+    return date_dir / f"科技日报-{date}.md"
 
 
 def final_path(date: str) -> Path:
-    return OUTPUT / date / f"AI早报-{date}-终稿.md"
+    return OUTPUT / date / f"科技日报-{date}-终稿.md"
 
 
 def latest_final_path(date: str) -> Path:
@@ -179,7 +180,7 @@ def items_from_text(text: str, date: str | None = None) -> list[dict]:
         items.append({
             "no": no,
             "title": info.get("ov_title") or f"条目{no}",
-            "category": info.get("category", "要闻"),
+            "category": info.get("category", "今日头条"),
             "links": _item_links(blk),
             "has_img": has_img,
             "needs_image": needs_image,
@@ -254,7 +255,7 @@ def start_run_log() -> None:
     run_id = datetime.now().strftime("%Y-%m-%d_%H-%M-%S-%f")
     RUN_LOG_DIR.mkdir(parents=True, exist_ok=True)
     path = RUN_LOG_DIR / f"run-{run_id}.log"
-    path.write_text(f"AI 早报采集/成稿运行\n开始时间：{datetime.now():%Y-%m-%d %H:%M:%S}\n", encoding="utf-8")
+    path.write_text(f"科技日报采集/成稿运行\n开始时间：{datetime.now():%Y-%m-%d %H:%M:%S}\n", encoding="utf-8")
     with run_lock:
         run_state["run_id"] = run_id
         run_state["log_file"] = str(path)
@@ -782,7 +783,7 @@ def api_export_single():
     md, meta = build_single(overview, blocks, no, date)
     if md is None:
         return jsonify({"ok": False, "error": f"编号 #{no} 不在草稿中"}), 400
-    out = next_path(OUTPUT / date / f"AI早报-{date}-单条-{no}.md")
+    out = next_path(OUTPUT / date / f"科技日报-{date}-单条-{no}.md")
     out.write_text(md, encoding="utf-8")
     record_export(date, overview, blocks, [no], out.name, ARTICLE_ARCHIVE)
     return jsonify({"ok": True, "name": out.name, "path": output_rel(out), "title": meta["title"]})
@@ -792,7 +793,7 @@ if __name__ == "__main__":
     import socket
     import sys
 
-    ap = argparse.ArgumentParser(description="AI 早报 Web 控制中心")
+    ap = argparse.ArgumentParser(description="科技日报 Web 控制中心")
     ap.add_argument("--port", type=int, default=8765)
     ap.add_argument("--no-browser", action="store_true", help="只启动服务，不开浏览器")
     args = ap.parse_args()

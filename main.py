@@ -1,4 +1,4 @@
-"""AI 每日资讯生成器：抓取 → 去重 → 排序 → 正文提取 → 成稿（含截图占位符）
+"""科技日报生成器：抓取 → 去重 → 排序 → 正文提取 → 成稿（含截图占位符）
 
 用法：
     python main.py                 # 正式运行（有 LLM_API_KEY 则成稿，否则列表版）
@@ -27,7 +27,7 @@ from src.pipeline.generate import (
     merge_changelog_updates,
     resolve_llm,
 )
-from src.pipeline.rank import rank
+from src.pipeline.rank import rank, select_balanced
 from src.pipeline.observe import observe, event_time
 from src.outputs.markdown import render_digest, write_digest
 
@@ -109,7 +109,7 @@ DEMO_ITEMS = [
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="AI 每日资讯生成器")
+    ap = argparse.ArgumentParser(description="科技日报生成器")
     ap.add_argument("--hours", type=int, default=None, help="时间窗口（小时），默认读配置")
     ap.add_argument("--top", type=int, default=None, help="最终草稿条数上限，默认读配置")
     ap.add_argument("--limit", type=int, default=30, help="每个源最多抓取条数")
@@ -186,7 +186,7 @@ def main() -> int:
         items = [it for it in items if not it.get("ranking_matches", {}).get("blocked")]
         print(f"       偏好屏蔽 {len(blocked)} 条")
     snapshot_filtered_items(date_str, items, ROOT / "data" / "article-archive")
-    items = items[:top_n]
+    items = select_balanced(items, top_n)
     print(f"       最终入选 {len(items)} 条")
 
     print("[4/6] 提取正文（Top 条目，反爬站点自动退回摘要）")

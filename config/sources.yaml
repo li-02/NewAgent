@@ -1,20 +1,74 @@
 sources:
-- enabled: true
+- category: business
+  enabled: true
+  name: TechCrunch
+  type: rss
+  url: https://techcrunch.com/feed/
+  weight: 2
+- category: internet
+  enabled: true
+  name: The Verge
+  type: rss
+  url: https://www.theverge.com/rss/index.xml
+  weight: 2
+- category: internet
+  enabled: true
+  name: Ars Technica
+  type: rss
+  url: https://feeds.arstechnica.com/arstechnica/index
+  weight: 2
+- category: frontier
+  enabled: true
+  name: MIT Technology Review
+  type: rss
+  url: https://www.technologyreview.com/feed/
+  weight: 2
+- category: frontier
+  enabled: true
+  name: IEEE Spectrum
+  type: rss
+  url: https://spectrum.ieee.org/feeds/feed.rss
+  weight: 2
+- category: hardware
+  enabled: true
+  name: Apple Newsroom
+  require_tech: true
+  type: rss
+  url: https://www.apple.com/newsroom/rss-feed.rss
+  weight: 2
+- category: frontier
+  enabled: true
+  name: NASA News
+  type: rss
+  url: https://www.nasa.gov/news-release/feed/
+  weight: 2
+- category: policy
+  enabled: true
+  name: FTC Competition News
+  require_tech: true
+  type: rss
+  url: https://www.ftc.gov/feeds/press-release-competition.xml
+  weight: 2
+- category: ai
+  enabled: true
   name: OpenAI News
   type: rss
   url: https://openai.com/news/rss.xml
   weight: 3
-- enabled: true
+- category: ai
+  enabled: true
   name: Google DeepMind Blog
   type: rss
   url: https://deepmind.google/blog/rss.xml
   weight: 3
-- enabled: true
+- category: ai
+  enabled: true
   name: TechCrunch AI
   type: rss
   url: https://techcrunch.com/category/artificial-intelligence/feed/
   weight: 1
-- enabled: true
+- category: ai
+  enabled: true
   name: The Verge AI
   type: rss
   url: https://www.theverge.com/rss/ai-artificial-intelligence/index.xml
@@ -23,30 +77,35 @@ sources:
   enabled: true
   min_score: 150
   name: Hacker News
-  require_ai: true
+  require_tech: true
   type: hackernews
   weight: 1
-- enabled: true
+- category: chips
+  enabled: true
   name: NVIDIA Blog
   type: rss
   url: https://blogs.nvidia.com/feed/
   weight: 2
-- enabled: true
+- category: frontier
+  enabled: true
   name: Microsoft Research
   type: rss
   url: https://www.microsoft.com/en-us/research/feed/
   weight: 2
-- enabled: true
+- category: ai
+  enabled: true
   name: VentureBeat AI
   type: rss
   url: https://venturebeat.com/category/ai/feed/
   weight: 1
-- enabled: true
+- category: ai
+  enabled: true
   name: Ars Technica AI
   type: rss
   url: https://arstechnica.com/ai/feed/
   weight: 1
-- enabled: true
+- category: ai
+  enabled: true
   name: The Decoder
   require_ai: true
   type: rss
@@ -59,7 +118,8 @@ sources:
   type: rss
   url: https://feed.infoq.com/ai-ml-data-eng/
   weight: 1
-- enabled: true
+- category: ai
+  enabled: true
   name: 量子位
   type: rss
   url: https://www.qbitai.com/feed
@@ -109,13 +169,15 @@ sources:
   type: changelog
   url: https://raw.githubusercontent.com/anthropics/claude-code/main/CHANGELOG.md
   weight: 3
-- enabled: true
+- category: ai
+  enabled: true
   name: 智谱 AI
   site: zhipu
   type: html_updates
   url: https://docs.bigmodel.cn/cn/update/new-releases
   weight: 3
-- code: news.news-list
+- category: ai
+  code: news.news-list
   enabled: true
   name: 阿里千问
   site: qwen
@@ -136,13 +198,15 @@ sources:
   type: html_updates
   url: https://docs.qoder.com/zh/release-notes/qoder
   weight: 3
-- enabled: true
+- category: ai
+  enabled: true
   name: Kimi
   site: moonshot
   type: html_updates
   url: https://www.moonshot.cn/
   weight: 3
-- enabled: true
+- category: ai
+  enabled: true
   name: DeepSeek News
   site: deepseek
   type: html_updates
@@ -155,24 +219,27 @@ sources:
   type: html_updates
   url: https://api-docs.deepseek.com/updates/
   weight: 3
-- enabled: true
+- category: internet
+  enabled: true
   name: Google 产品博客
-  require_ai: true
   type: rss
   url: https://blog.google/rss/
   weight: 3
-- enabled: true
+- category: ai
+  enabled: true
   link_pattern: ^https://microsoft\.ai/news/[^/?]+/?$
   name: Microsoft AI
   type: article_index
   url: https://microsoft.ai/news/
   weight: 3
-- enabled: true
+- category: ai
+  enabled: true
   name: Microsoft Foundry
   type: rss
   url: https://techcommunity.microsoft.com/t5/s/gxcuf89792/rss/board?board.id=azure-ai-foundry-blog
   weight: 3
-- enabled: true
+- category: ai
+  enabled: true
   link_pattern: ^https://research\.meta\.ai/blog/[^/?]+/?$
   name: Meta AI Research
   type: article_index
@@ -268,12 +335,14 @@ sources:
   type: page_watch
   url: https://docs.qoder.cn/en/product-overview/qwen-3-7-series-model-staggering-discount
   weight: 3
-- enabled: true
+- category: ai
+  enabled: true
   name: 百灵开发者文档
   type: page_watch
   url: https://developer.ant-ling.com/zh-CN/docs/
   weight: 3
-- enabled: true
+- category: ai
+  enabled: true
   name: 百灵多模态文档
   type: page_watch
   url: https://developer.ant-ling.com/zh-CN/docs/tutorials/multimodal-understanding/

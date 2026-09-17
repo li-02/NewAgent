@@ -70,6 +70,15 @@ class WebUiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("image-shelf-count", response.get_data(as_text=True))
 
+    def test_export_title_is_editable_and_copyable(self) -> None:
+        html = self.client.get("/").get_data(as_text=True)
+        app_js = (webui.ROOT / "static" / "app.js").read_text(encoding="utf-8")
+
+        self.assertIn('<input id="exportTitle" type="text"', html)
+        self.assertIn('<button id="copyExportTitleBtn" type="button"', html)
+        self.assertIn('$("#copyExportTitleBtn").addEventListener("click", copyExportTitle)', app_js)
+        self.assertIn('await navigator.clipboard.writeText(title)', app_js)
+
     def test_index_item_picker_is_expanded_and_carryover_collapsed_by_default(self) -> None:
         html = self.client.get("/").get_data(as_text=True)
 

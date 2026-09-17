@@ -158,9 +158,11 @@ aside > .side-tip { margin-top: auto; }
 .export-dialog-head p, #exportPreviewCount { color: var(--muted); font-size: 13px; }
 .export-dialog-head > div:first-child { flex: 1; }
 .export-title-field { display: grid; grid-template-columns: 86px minmax(0, 1fr); align-items: center; gap: 5px 12px; padding: 14px 20px; border-bottom: 1px solid var(--line); background: var(--panel); }
-.export-title-field > span { font-size: 14px; font-weight: 600; }
-.export-title-field input { min-width: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; color: var(--text); font: inherit; outline: none; }
+.export-title-field > label { font-size: 14px; font-weight: 600; }
+.export-title-control { display: flex; min-width: 0; gap: 8px; }
+.export-title-field input { flex: 1; min-width: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; color: var(--text); font: inherit; outline: none; }
 .export-title-field input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(9, 105, 218, .12); }
+.export-title-control button { flex: none; white-space: nowrap; }
 .export-title-field small { grid-column: 2; color: var(--muted); font-size: 12px; }
 .export-cover-field { padding: 14px 20px; border-bottom: 1px solid var(--line); background: #fbfcfe; }
 .export-cover-heading { display: flex; flex-direction: column; gap: 3px; margin-bottom: 10px; }

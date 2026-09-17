@@ -199,7 +199,7 @@ def display_date(date_str: str) -> str:
 def default_final_title(date_str: str) -> str:
     """Return the default editable title used for final exports."""
     date = datetime.strptime(date_str, "%Y-%m-%d")
-    return f"今日资讯 | AI日报{date:%m%d}"
+    return f"今日资讯 | 科技日报{date:%m%d}"
 
 
 def normalize_final_title(title: str | None, date_str: str) -> str:
@@ -257,7 +257,7 @@ def build_final(
     for new_no, old_no in enumerate(picked, 1):
         info = overview.get(old_no, {})
         title = info.get("ov_title") or f"条目{old_no}"
-        cat = info.get("category", "要闻")
+        cat = info.get("category", "今日头条")
         source_image = existing_image(blocks[old_no], asset_root)
         blk = strip_placeholder(blocks[old_no])
         links = link_fence(blk)
@@ -338,15 +338,17 @@ def main() -> int:
     ap.add_argument("picks", nargs="*", type=int, help="草稿概览中的条目编号，按终稿顺序给出")
     ap.add_argument("--single", type=int, default=None, help="单条导出：只导出指定编号的一条")
     ap.add_argument("--date", default=datetime.now().strftime("%Y-%m-%d"), help="草稿日期")
-    ap.add_argument("--out", default=None, help="输出路径（默认 output/AI早报-{date}-终稿.md）")
-    ap.add_argument("--title", default=None, help="终稿标题（默认：今日资讯 | AI日报MMDD）")
+    ap.add_argument("--out", default=None, help="输出路径（默认 output/科技日报-{date}-终稿.md）")
+    ap.add_argument("--title", default=None, help="终稿标题（默认：今日资讯 | 科技日报MMDD）")
     ap.add_argument("--include-sources", action="store_true", help="在终稿末尾附带信息源小节")
     ap.add_argument("--include-overview", action="store_true", help="在终稿开头附带概览，默认不导出")
     args = ap.parse_args()
 
     date_dir = ROOT / "output" / args.date
-    draft = date_dir / f"AI早报-{args.date}.md"
-    if not draft.exists():  # 兼容迁移前的历史稿件
+    draft = date_dir / f"科技日报-{args.date}.md"
+    if not draft.exists():  # 兼容迁移前的历史稿件和旧目录结构
+        draft = date_dir / f"AI早报-{args.date}.md"
+    if not draft.exists():
         draft = ROOT / "output" / f"AI早报-{args.date}.md"
     if not draft.exists():
         print(f"找不到草稿：{draft}")
@@ -361,7 +363,7 @@ def main() -> int:
         if args.out:
             out = Path(args.out)
         else:
-            out = next_path(date_dir / f"AI早报-{args.date}-单条-{args.single}.md")
+            out = next_path(date_dir / f"科技日报-{args.date}-单条-{args.single}.md")
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(md, encoding="utf-8")
         record_export(
@@ -385,7 +387,7 @@ def main() -> int:
     if args.out:
         out = Path(args.out)  # 显式指定路径时按用户要求覆盖
     else:
-        out = next_path(date_dir / f"AI早报-{args.date}-终稿.md")
+        out = next_path(date_dir / f"科技日报-{args.date}-终稿.md")
     out.parent.mkdir(parents=True, exist_ok=True)
     (out.parent / "assets" / args.date).mkdir(parents=True, exist_ok=True)
     out.write_text(md, encoding="utf-8")

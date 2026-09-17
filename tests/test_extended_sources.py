@@ -120,6 +120,15 @@ class FetcherTests(unittest.TestCase):
             row=run_source({'type':'test','name':'Reddit','category':'community'},1)[0]
         self.assertEqual(row['evidence_type'],'community')
 
+    def test_technology_filter_keeps_tech_and_drops_unrelated_rows(self):
+        rows = [
+            {'title': 'New semiconductor chip launches', 'url': 'https://example.com/chip'},
+            {'title': 'Best pasta recipes', 'url': 'https://example.com/pasta'},
+        ]
+        with patch.dict('src.fetchers.FETCHERS', {'test': lambda s, n: rows}):
+            result = run_source({'type': 'test', 'name': 'Mixed', 'require_tech': True}, 2)
+        self.assertEqual([row['title'] for row in result], ['New semiconductor chip launches'])
+
     def test_config_registered_and_invalid_selectors_rejected(self):
         config=load_source_config(Path('config/sources.yaml'))
         from src.fetchers import FETCHERS

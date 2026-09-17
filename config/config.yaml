@@ -32,7 +32,7 @@ preferences:
 
 output:
   dir: output
-  filename: "AI早报-{date}.md"
+  filename: "科技日报-{date}.md"
 
 # SQLite：记录已见条目，用于跨天去重
 db_path: data/news.db

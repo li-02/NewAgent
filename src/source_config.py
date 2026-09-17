@@ -9,7 +9,11 @@ from urllib.parse import urlparse
 import yaml
 
 SOURCE_TYPES = ("rss", "hackernews", "changelog", "html_updates", "page_watch", "article_index", "huggingface", "github_org", "x_account", "model_catalog")
-CATEGORIES = ("news", "paper", "community", "dev", "product")
+CATEGORIES = (
+    "news", "ai", "chips", "hardware", "internet", "frontier", "business", "policy",
+    # 兼容既有信息源配置。
+    "paper", "community", "dev", "product",
+)
 URL_FIELDS = ("url", "api_url", "link_base")
 ALLOWED_FIELDS = {
     "name",
@@ -24,6 +28,7 @@ ALLOWED_FIELDS = {
     "item_limit",
     "min_score",
     "require_ai",
+    "require_tech",
     "weight",
     "category",
     "content_xpath",
@@ -44,7 +49,8 @@ FIELD_META = [
     {"name": "format", "label": "格式", "kind": "text"},
     {"name": "item_limit", "label": "条目上限", "kind": "integer", "min": 1},
     {"name": "min_score", "label": "最低分", "kind": "integer", "min": 0},
-    {"name": "require_ai", "label": "AI 关键词过滤", "kind": "boolean", "default": False},
+    {"name": "require_ai", "label": "AI 关键词过滤（兼容旧配置）", "kind": "boolean", "default": False},
+    {"name": "require_tech", "label": "科技关键词过滤", "kind": "boolean", "default": False},
     {"name": "weight", "label": "权重", "kind": "number", "default": 1},
     {"name": "category", "label": "分类", "kind": "select", "default": "news", "options": list(CATEGORIES)},
 ]
@@ -151,6 +157,8 @@ def normalize_source(source: object, idx: int = 0) -> dict:
         normalized["min_score"] = _to_int(normalized["min_score"], f"{name} 的 min_score", minimum=0)
     if "require_ai" in normalized:
         normalized["require_ai"] = _to_bool(normalized["require_ai"])
+    if "require_tech" in normalized:
+        normalized["require_tech"] = _to_bool(normalized["require_tech"])
 
     return normalized
 

@@ -21,7 +21,7 @@ def strip_html(text: str) -> str:
     return re.sub(r"\s+", " ", unescape(text)).strip()
 
 
-# AI 相关性关键词：供综合类源（如 Hacker News）做准入过滤
+# AI / 科技相关性关键词：供综合类源（如 Hacker News）做准入过滤
 AI_KEYWORDS = re.compile(
     r"\bai\b|artificial intelligence|人工智能|机器学习|machine learning"
     r"|深度学习|deep learning|neural|神经网络|llm|large language|大模型"
@@ -34,6 +34,20 @@ AI_KEYWORDS = re.compile(
 
 def ai_relevant(text: str) -> bool:
     return bool(AI_KEYWORDS.search(text or ""))
+
+
+TECH_KEYWORDS = re.compile(
+    r"\b(?:ai|llm|software|hardware|chip|semiconductor|gpu|cpu|cloud|cybersecurity|robot|robotics|"
+    r"autonomous|electric vehicle|space|quantum|biotech|developer|programming|internet|browser|startup|tech|"
+    r"iphone|ipad|macbook|android|windows|samsung|intel|amd|qualcomm|tsmc|tesla|spacex)\b|"
+    r"人工智能|大模型|软件|硬件|芯片|半导体|云计算|网络安全|机器人|自动驾驶|电动车|商业航天|量子|"
+    r"生物科技|新能源|开发者|编程|互联网|浏览器|科技公司",
+    re.IGNORECASE,
+)
+
+
+def tech_relevant(text: str) -> bool:
+    return bool(TECH_KEYWORDS.search(text or ""))
 
 
 def run_source(source: dict, limit: int) -> list[dict]:
@@ -51,8 +65,12 @@ def run_source(source: dict, limit: int) -> list[dict]:
             row["evidence_type"] = "community"
         if not isinstance(row.get("published"), datetime):
             row["published"] = None
-        # 综合类源可配 require_ai: true，只保留 AI 相关条目
+        # 综合类源可配置主题准入过滤，避免无关内容挤占日报名额。
         if source.get("require_ai") and not ai_relevant(
+            f"{row['title']} {row['summary']}"
+        ):
+            continue
+        if source.get("require_tech") and not tech_relevant(
             f"{row['title']} {row['summary']}"
         ):
             continue

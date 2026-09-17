@@ -79,6 +79,23 @@ class GenerateTests(unittest.TestCase):
         self.assertNotIn("尚未获官方确认", result)
         self.assertIn("该开发者介绍了工具的主要用途。", result)
 
+    def test_source_categories_fall_back_to_technology_sections(self) -> None:
+        items = []
+        for index, category in enumerate(("ai", "chips", "hardware", "internet", "frontier", "business", "policy"), 1):
+            items.append({
+                "title": f"测试资讯{index}",
+                "url": f"https://example.com/{index}",
+                "source": "测试源",
+                "category": category,
+                "summary": "测试摘要",
+                "sources": [("测试源", f"https://example.com/{index}")],
+            })
+
+        result = assemble_digest([], items, "2026-09-16")
+
+        for section in ("AI", "芯片与硬件", "互联网与产品", "前沿科技", "商业与资本", "政策与产业"):
+            self.assertIn(f"### {section}", result)
+
 
 if __name__ == "__main__":
     unittest.main()

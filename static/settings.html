@@ -2,7 +2,7 @@
 <html lang="zh">
 <head>
 <meta charset="utf-8">
-<title>采集设置 · AI 早报</title>
+<title>采集设置 · 科技日报</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg'><text y='.9em' font-size='90'>⚙️</text></svg>">
 <link rel="stylesheet" href="/static/style.css">
@@ -80,17 +80,27 @@
       </label>
       <label><span>分类</span>
         <select id="fieldCategory">
-          <option value="news">综合资讯</option>
-          <option value="dev">开发生态</option>
-          <option value="product">产品应用</option>
-          <option value="paper">论文与开源</option>
-          <option value="community">社区热点</option>
+          <option value="news">今日头条 / 综合</option>
+          <option value="ai">AI</option>
+          <option value="chips">芯片</option>
+          <option value="hardware">消费电子与硬件</option>
+          <option value="internet">互联网与产品</option>
+          <option value="frontier">前沿科技</option>
+          <option value="business">商业与资本</option>
+          <option value="policy">政策与产业</option>
+          <optgroup label="兼容旧分类">
+            <option value="dev">开发生态 → 互联网与产品</option>
+            <option value="product">产品应用 → 互联网与产品</option>
+            <option value="paper">论文与开源 → 前沿科技</option>
+            <option value="community">社区热点 → 互联网与产品</option>
+          </optgroup>
         </select>
       </label>
       <label><span>权重</span><input id="fieldWeight" type="number" min="0" max="5" step="0.5" value="1"></label>
       <label class="check-field"><input id="fieldEnabled" type="checkbox" checked><span>启用此来源</span></label>
       <label class="wide url-field"><span>来源 URL *</span><input id="fieldUrl" type="url" placeholder="https://example.com/feed.xml"></label>
-      <label class="check-field wide"><input id="fieldRequireAi" type="checkbox"><span>仅保留 AI 相关条目（适合综合资讯源）</span></label>
+      <label class="check-field wide"><input id="fieldRequireTech" type="checkbox"><span>仅保留科技相关条目（适合综合资讯源）</span></label>
+      <label class="check-field wide"><input id="fieldRequireAi" type="checkbox"><span>仅保留 AI 相关条目（兼容旧配置，范围更窄）</span></label>
 
       <div class="type-fields changelog-fields wide" hidden>
         <label><span>详情页 URL</span><input id="fieldLinkBase" type="url" placeholder="可选，条目最终跳转地址"></label>

@@ -1,4 +1,4 @@
-"""成稿：LLM 逐条撰写（TLDR + 短段落正文 + 分类判断），代码负责装配《AI 早报》版式：
+"""成稿：LLM 逐条撰写（TLDR + 短段落正文 + 分类判断），代码负责装配《科技日报》版式：
 概览（按分类分组、#N 编号）→ 编号条目小节（截图占位 + 短段落正文 + 链接块，先图后文）。
 无 API key 或解析失败时，退化为同版式的摘要版。"""
 from __future__ import annotations
@@ -11,13 +11,20 @@ import httpx
 
 from src.pipeline.dedup import normalize_url
 
-CATEGORIES = ["要闻", "开发生态", "产品应用", "行业动态"]
-CATEGORY_FALLBACK = {  # 源配置的 category -> 早报分类
-    "news": "要闻",
-    "community": "要闻",
-    "dev": "开发生态",
-    "product": "产品应用",
-    "paper": "行业动态",
+CATEGORIES = ["今日头条", "AI", "芯片与硬件", "互联网与产品", "前沿科技", "商业与资本", "政策与产业"]
+CATEGORY_FALLBACK = {  # 源配置的 category -> 日报分类
+    "news": "今日头条",
+    "ai": "AI",
+    "chips": "芯片与硬件",
+    "hardware": "芯片与硬件",
+    "community": "互联网与产品",
+    "dev": "互联网与产品",
+    "internet": "互联网与产品",
+    "product": "互联网与产品",
+    "paper": "前沿科技",
+    "frontier": "前沿科技",
+    "business": "商业与资本",
+    "policy": "政策与产业",
 }
 
 SYSTEM_PROMPT = """你是一名专业、严谨的科技新闻资讯编辑与报道撰稿人。你的任务是根据用户提供的新闻素材、检索结果、公告、数据或其他信息，整理并撰写准确、清晰、可信的新闻内容。
@@ -45,7 +52,7 @@ SYSTEM_PROMPT = """你是一名专业、严谨的科技新闻资讯编辑与报�
 
 输出前自检：标题是否越过证据边界；人名、机构、时间、地点和数字是否准确；是否把推测写成事实；是否遗漏重要不确定性；是否加入材料之外的信息。真实性、来源透明度和禁止虚构的原则优先于其他写作要求。"""
 
-USER_PROMPT = """请基于以下素材，为每一条素材各写一个条目，用于拼装今天的《AI 早报》。
+USER_PROMPT = """请基于以下素材，为每一条素材各写一个条目，用于拼装今天的《科技日报》。
 
 报道方式：
 - 以事件中的相关公司、产品或人物为主要叙事主体，不要使用“素材中”“文章提到”等描述输入过程的措辞。
@@ -61,7 +68,7 @@ USER_PROMPT = """请基于以下素材，为每一条素材各写一个条目，
 ===ITEM===
 URL: <原样复制该素材的链接>
 标题: <15~30字的中文短标题，概括事件核心；专有名词/产品名保留英文>
-分类: <要闻/开发生态/产品应用/行业动态 四选一，按内容判断>
+分类: <今日头条/AI/芯片与硬件/互联网与产品/前沿科技/商业与资本/政策与产业 七选一，按内容判断>
 TLDR: <60~120字的一段话摘要，概括整个事件的关键信息>
 BODY:
 <正文：2~6个短段落，每段只讲一个事实，段落之间用空行分隔；关键人名/公司/产品名用**加粗**，关键数字/版本号/专有名词用`反引号`>
@@ -73,6 +80,7 @@ BODY:
 3. URL 必须原样复制素材中的链接，禁止改写、拼接、杜撰；URL 只用于回填字段，不要出现在标题、TLDR 和正文里。
 4. 客观陈述，不夸大；中文写作，专有名词保留英文原名。
 5. 除条目块外不要输出任何解释、标题或代码围栏。
+6. “今日头条”只用于会显著影响多个科技领域、产业格局或大众用户的重大事件；普通内容应归入对应垂直栏目。
 
 素材：
 ---
@@ -175,7 +183,7 @@ def parse_llm_items(text: str) -> list[dict]:
             parsed.append({
                 "url": url,
                 "title": title,
-                "category": cat if cat in CATEGORIES else "要闻",
+                "category": cat if cat in CATEGORIES else "今日头条",
                 "tldr": clean_meta_reporting(re.sub(r"\s*\n\s*", " ", tldr)),
                 "body": clean_meta_reporting("\n".join(body_lines).strip()),
             })
@@ -239,7 +247,7 @@ def assemble_digest(parsed: list[dict], items: list[dict], date_str: str) -> str
         )
         title = (p["title"] if p and p["title"] else it["title"])
         it["display_title"] = title
-        category = p["category"] if p else CATEGORY_FALLBACK.get(it.get("category", "news"), "要闻")
+        category = p["category"] if p else CATEGORY_FALLBACK.get(it.get("category", "news"), "今日头条")
         tldr = p["tldr"] if p else clean_meta_reporting((it.get("summary") or "")[:150])
         body = p["body"] if p else clean_meta_reporting((it.get("text") or it.get("summary") or "")[:400])
         if it.get("observed_at"):

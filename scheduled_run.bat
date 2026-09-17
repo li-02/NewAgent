@@ -12,6 +12,6 @@ echo [info] python: %PYTHON_EXE% >> "%~dp0logs\run.log"
 "%PYTHON_EXE%" "%PROJECT_DIR%main.py" >> "%~dp0logs\run.log" 2>&1
 set "EXIT_CODE=%errorlevel%"
 echo ===== run end %date% %time% exit code %EXIT_CODE% ===== >> "%~dp0logs\run.log"
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Add-Type -AssemblyName PresentationFramework; [System.Windows.MessageBox]::Show('AI每日资讯定时任务已完成。退出码：%EXIT_CODE%','AI每日资讯')" >> "%~dp0logs\run.log" 2>&1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Add-Type -AssemblyName PresentationFramework; [System.Windows.MessageBox]::Show('科技日报定时任务已完成。退出码：%EXIT_CODE%','科技日报')" >> "%~dp0logs\run.log" 2>&1
 echo [info] notification exit code %errorlevel% >> "%~dp0logs\run.log"
 exit /b %EXIT_CODE%

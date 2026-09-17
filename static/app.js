@@ -1,4 +1,4 @@
-/* AI 早报控制中心前端逻辑 */
+/* 科技日报控制中心前端逻辑 */
 const $ = (s) => document.querySelector(s);
 let date = null;
 let items = [];
@@ -489,7 +489,41 @@ function renderExportPreview() {
 function defaultExportTitle(d) {
   const parts = String(d || "").split("-");
   const suffix = parts.length === 3 ? `${parts[1].padStart(2, "0")}${parts[2].padStart(2, "0")}` : "";
-  return `今日资讯 | AI日报${suffix}`;
+  return `今日资讯 | 科技日报${suffix}`;
+}
+
+async function copyExportTitle() {
+  const title = $("#exportTitle").value.trim();
+  if (!title) {
+    status("请先填写终稿标题", true);
+    $("#exportTitle").focus();
+    return;
+  }
+  const button = $("#copyExportTitleBtn");
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(title);
+    } else {
+      const input = document.createElement("textarea");
+      input.value = title;
+      input.setAttribute("readonly", "");
+      input.style.position = "fixed";
+      input.style.opacity = "0";
+      document.body.appendChild(input);
+      input.select();
+      if (!document.execCommand("copy")) throw new Error("浏览器拒绝了复制操作");
+      input.remove();
+    }
+    button.textContent = "已复制";
+    button.classList.add("copied");
+    status("✅ 终稿标题已复制");
+    setTimeout(() => {
+      button.textContent = "复制标题";
+      button.classList.remove("copied");
+    }, 1600);
+  } catch (error) {
+    status(`复制标题失败：${error.message}`, true);
+  }
 }
 
 async function openExportPreview() {
@@ -550,6 +584,7 @@ async function confirmExport() {
 }
 
 $("#uploadExportCoverBtn").addEventListener("click", () => $("#exportCoverFile").click());
+$("#copyExportTitleBtn").addEventListener("click", copyExportTitle);
 $("#exportCoverFile").addEventListener("change", async (event) => {
   const file = event.target.files?.[0];
   event.target.value = "";

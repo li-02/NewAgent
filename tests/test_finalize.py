@@ -28,7 +28,7 @@ class FinalizeTests(unittest.TestCase):
 
         result, _ = build_final(overview, blocks, [1], "2026-08-31")
 
-        self.assertTrue(result.startswith("# 今日资讯 | AI日报0831\n\n## 测试资讯"))
+        self.assertTrue(result.startswith("# 今日资讯 | 科技日报0831\n\n## 测试资讯"))
         self.assertNotIn("## 概览", result)
         self.assertNotIn("生成时间", result)
         self.assertNotIn("审核清单", result)

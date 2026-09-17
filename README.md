@@ -1,6 +1,6 @@
-# AI 每日资讯生成器
+# 科技日报生成器
 
-自动抓取官方 AI 资讯源，过滤、去重、排序后生成一篇结构化的《AI 每日资讯》Markdown 稿件。
+自动抓取科技媒体与官方信源，经过主题过滤、去重、排序后生成一篇结构化的《科技日报》Markdown 稿件。AI 仍是重点栏目，同时覆盖芯片与硬件、互联网与产品、前沿科技、商业资本和产业政策。
 成稿中为重要新闻预留**截图占位符**，由人工在审核时手动补充官方页面截图。
 
 ```
@@ -21,9 +21,9 @@ python -m venv .venv
 .venv\Scripts\python.exe main.py
 ```
 
-产物：`output/YYYY-MM-DD/AI早报-YYYY-MM-DD.md`。同一天重复运行会依次生成 `AI早报-YYYY-MM-DD-1.md`、`-2.md`，不会覆盖历史稿件。
+产物：`output/YYYY-MM-DD/科技日报-YYYY-MM-DD.md`。同一天重复运行会依次生成 `科技日报-YYYY-MM-DD-1.md`、`-2.md`，不会覆盖历史稿件。控制中心仍可读取迁移前的 `AI早报-*` 历史稿件。
 
-成稿版式参考公众号「AI 早报」类日刊：开头是按 **要闻 / 开发生态 / 产品应用 / 行业动态** 分组的**概览**（带 `#N` 编号），每条新闻一个独立小节——`## 中文标题 #N` + 截图（先图后文，未配图时为截图占位）+ 短段落正文（关键实体加粗、数字用反引号）+ 代码块包裹的原文链接列表。标题、分类、TLDR、正文由 LLM 逐条撰写，编号、概览、占位符、链接块由代码确定性拼装，保证编号不错位。
+成稿开头是按 **今日头条 / AI / 芯片与硬件 / 互联网与产品 / 前沿科技 / 商业与资本 / 政策与产业** 分组的概览（带 `#N` 编号）。每条新闻使用独立小节：`## 中文标题 #N` + 截图 + 短段落正文 + 原文链接。标题、分类、TLDR、正文由 LLM 逐条撰写，编号、概览、占位符和链接块由代码确定性拼装。
 
 **报道立场**：本报告以第三方视角直接报道第一方事实（"阿里发布…"而非"量子位报道称…"）。喂给 LLM 的素材不带媒体署名，Prompt 硬性禁止转述措辞（报道称/据报道/文章提到）和来源媒体名；来源统一由系统附在文末，正文不出现。
 
@@ -64,11 +64,11 @@ setx LLM_API_KEY "你的key"
 python finalize.py 1 2 4 5 7
 ```
 
-生成 `output/{日期}/AI早报-{日期}-终稿.md`：条目文字原样保留、重新编号 `#1..#N`、概览按分类重排；**正文条目不带链接块**（草稿里的链接块仅供截图时对照原文），全部信息源统一列在文末「🔗 信息源」小节；已手动插入图片的条目保留图片，未粘贴图片的条目不输出空白图片占位符。
+生成 `output/{日期}/科技日报-{日期}-终稿.md`：条目文字原样保留、重新编号 `#1..#N`、概览按分类重排；**正文条目不带链接块**（草稿里的链接块仅供截图时对照原文），全部信息源统一列在文末「🔗 信息源」小节；已手动插入图片的条目保留图片，未粘贴图片的条目不输出空白图片占位符。
 
 **导出不覆盖历史**：同一天反复导出会自动加序号（`终稿.md`、`终稿-1.md`、`终稿-2.md`…），每一版都保留。
 
-**单条导出**：左侧每个条目行末的「⬇」按钮，把该条目单独导出为 `AI早报-{日期}-单条-{编号}.md`（轻量结构：标题 + 正文 + 截图 + 来源，同样不覆盖历史）；命令行为 `python finalize.py --single 5`。
+**单条导出**：左侧每个条目行末的「⬇」按钮，把该条目单独导出为 `科技日报-{日期}-单条-{编号}.md`（轻量结构：标题 + 正文 + 截图 + 来源，同样不覆盖历史）；命令行为 `python finalize.py --single 5`。
 
 ## Web 控制中心
 
@@ -91,14 +91,17 @@ python webui.py    # 或双击 webui.bat，浏览器自动打开 http://127.0.0.
 
 `config/config.yaml`：时间窗口 `time_window_hours`、最终草稿条数上限 `top_n`（默认 12，也可在“采集设置”页面修改）、截图占位数 `screenshot_count`、LLM 设置、输出路径、SQLite 路径。
 
+候选条目先按科技主题与重要性评分，再优先保留各个已有栏目的最高分条目，最后按总分补满 `top_n`，避免 AI 新闻占满整份日报。
+
 `config/sources.yaml`：数据源列表。字段说明：
 
 | 字段 | 说明 |
 |---|---|
 | `type` | `rss`（通用 RSS/Atom）、`hackernews`（HN 官方 API）、`changelog`（Markdown 更新日志）、`html_updates`（无 RSS 的官方公告/更新页面） |
 | `weight` | 官方源权重，排序加分项（1~3） |
-| `category` | `news`（默认）/ `dev`（归入"开发生态"小节）/ `product`（"产品应用"）/ `paper`（"论文与开源"） |
-| `require_ai` | `true` 时做 AI 关键词准入过滤，适合 HN 这类综合源 |
+| `category` | `news` / `ai` / `chips` / `hardware` / `internet` / `frontier` / `business` / `policy`；旧值 `dev` / `product` / `paper` / `community` 继续兼容 |
+| `require_tech` | `true` 时做科技关键词准入过滤，适合 Hacker News 这类综合源 |
+| `require_ai` | `true` 时只保留 AI 内容，用于仍需窄范围过滤的信源 |
 | `min_score` | 仅 HN 源：最低热度分 |
 | `item_limit` / `link_base` | 仅 changelog 源：最多取最近几个版本 / 条目链接指向的页面（默认为 url 本身） |
 | `site` | 仅 `html_updates`：站点适配器，目前支持 `zhipu` / `qwen` / `workbuddy` / `qoder` / `moonshot` / `deepseek` |
@@ -134,7 +137,7 @@ schtasks /Delete /TN "AI每日资讯" /F           :: 删除任务
 
 ### 官方文档、模型与社区来源
 
-信息源设置现支持页面变更、文章目录、Hugging Face 模型、GitHub 机构仓库、OpenRouter 模型目录和 X 账号。新增 Google 产品博客、Microsoft AI / Foundry、Meta Research、OpenAI / Claude 帮助文档、Codex / OpenCode 更新、Qoder 优惠、百灵文档、inclusionAI 模型仓库及三个 Reddit 社区。
+信息源覆盖 TechCrunch、The Verge、Ars Technica、MIT Technology Review、IEEE Spectrum、Apple Newsroom、NASA，以及原有 AI 官方源、产品更新、开发生态、模型仓库和社区来源。
 
 - `page_watch`：无日期正文首次采集只建立基线。后续保存正文差异与首次检测时间；同一变化沿用同一个时间和标识，超过原有 26 小时时窗就退出候选。
 - `article_index`：通过 `link_pattern` 选择文章，使用文章发布时间；无日期文章先建基线，新发现及已有文章正文修改标注检测时间。`content_xpath` 可限定正文区域。

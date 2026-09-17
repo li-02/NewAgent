@@ -86,12 +86,15 @@ def latest_filtered_draft(date: str, output_root: Path, archive_root: Path) -> P
     drafts = []
     if date_dir.is_dir():
         drafts = [
-            item for item in date_dir.glob(f"AI早报-{date}*.md")
+            item
+            for prefix in ("科技日报", "AI早报")
+            for item in date_dir.glob(f"{prefix}-{date}*.md")
             if "终稿" not in item.name and "单条" not in item.name
         ]
-    legacy = output_root / f"AI早报-{date}.md"
-    if legacy.is_file():
-        drafts.append(legacy)
+    for prefix in ("科技日报", "AI早报"):
+        legacy = output_root / f"{prefix}-{date}.md"
+        if legacy.is_file():
+            drafts.append(legacy)
     return max(drafts, key=lambda item: item.stat().st_mtime_ns) if drafts else None
 
 
@@ -171,7 +174,12 @@ def _latest_item_snapshot(date: str, archive_root: Path) -> Path | None:
 
 
 def _category_label(value: str) -> str:
-    return {"news": "要闻", "paper": "论文", "tool": "工具", "product": "产品"}.get(value, value or "昨日补选")
+    return {
+        "news": "今日头条", "ai": "AI", "chips": "芯片与硬件", "hardware": "芯片与硬件",
+        "internet": "互联网与产品", "dev": "互联网与产品", "product": "互联网与产品",
+        "paper": "前沿科技", "frontier": "前沿科技", "business": "商业与资本", "policy": "政策与产业",
+        "tool": "互联网与产品", "community": "互联网与产品",
+    }.get(value, value or "昨日补选")
 
 
 def _snapshot_block(row: dict) -> list[str]:

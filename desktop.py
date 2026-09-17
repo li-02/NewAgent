@@ -1,4 +1,4 @@
-"""AI 早报桌面控制中心。
+"""科技日报桌面控制中心。
 
 用 pywebview 打开现有 Flask WebUI，保留 Web 端代码路径，便于快速修改和排查。
 """
@@ -35,7 +35,7 @@ def is_running(host: str, port: int) -> bool:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="AI 早报桌面控制中心")
+    parser = argparse.ArgumentParser(description="科技日报桌面控制中心")
     parser.add_argument("--port", type=int, default=8765)
     args = parser.parse_args()
 
@@ -46,7 +46,7 @@ def main() -> int:
         server.start()
 
     window = webview.create_window(
-        "AI 早报 · 控制中心",
+        "科技日报 · 控制中心",
         f"http://{host}:{args.port}",
         width=1280,
         height=820,

@@ -95,7 +95,8 @@ function renderSources() {
     url.textContent = source.url || "内置 API，无需 URL";
     const meta = document.createElement("div");
     meta.className = "source-card-meta";
-    meta.textContent = `分类：${source.category || "news"}　权重：${source.weight ?? 1}${source.require_ai ? "　仅 AI" : ""}`;
+    const filterLabel = source.require_ai ? "　仅 AI" : (source.require_tech ? "　仅科技" : "");
+    meta.textContent = `分类：${source.category || "news"}　权重：${source.weight ?? 1}${filterLabel}`;
     main.append(titleRow, url, meta);
 
     const actions = document.createElement("div");
@@ -122,7 +123,7 @@ function renderSources() {
 }
 
 function defaultSource(type = "rss") {
-  return { name: "", type, url: "", enabled: true, weight: 1, category: "news", require_ai: false };
+  return { name: "", type, url: "", enabled: true, weight: 1, category: "news", require_tech: false, require_ai: false };
 }
 
 function openDialog(index = null, preferredType = "rss") {
@@ -135,6 +136,7 @@ function openDialog(index = null, preferredType = "rss") {
   $("#fieldWeight").value = source.weight ?? 1;
   $("#fieldCategory").value = source.category || "news";
   $("#fieldEnabled").checked = source.enabled !== false;
+  $("#fieldRequireTech").checked = source.require_tech === true;
   $("#fieldRequireAi").checked = source.require_ai === true;
   $("#fieldLinkBase").value = source.link_base || "";
   $("#fieldItemLimit").value = source.item_limit ?? 5;
@@ -176,6 +178,7 @@ function sourceFromForm() {
     enabled: $("#fieldEnabled").checked,
     weight: Number($("#fieldWeight").value || 1),
     category: $("#fieldCategory").value,
+    require_tech: $("#fieldRequireTech").checked,
     require_ai: $("#fieldRequireAi").checked,
   };
   if (type !== "hackernews") source.url = $("#fieldUrl").value.trim();

@@ -159,7 +159,7 @@ def markdown_to_pdf(markdown: str, output: Path, asset_root: Path) -> Path:
     doc = SimpleDocTemplate(
         str(output), pagesize=A4, leftMargin=margin, rightMargin=margin,
         topMargin=16 * mm, bottomMargin=16 * mm,
-        title="今日资讯", author="AI 早报控制中心",
+        title="今日资讯", author="科技日报控制中心",
     )
     doc.build(story, onFirstPage=draw_footer, onLaterPages=draw_footer)
     return output

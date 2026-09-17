@@ -42,6 +42,9 @@ class SourcesApiTests(unittest.TestCase):
         self.assertTrue(payload["sources"][0]["enabled"])
         self.assertIn("rss", payload["types"])
         self.assertIn("product", payload["categories"])
+        self.assertIn("ai", payload["categories"])
+        self.assertIn("chips", payload["categories"])
+        self.assertTrue(any(field["name"] == "require_tech" for field in payload["fields"]))
         self.assertIn({"name": "name", "label": "名称", "kind": "text", "required": True}, payload["fields"])
 
     def test_settings_page_is_available(self) -> None:
