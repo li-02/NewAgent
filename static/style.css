@@ -192,7 +192,10 @@ aside > .side-tip { margin-top: auto; }
 .drag-handle { color: #8c959f; font-size: 22px; text-align: center; cursor: grab; }
 .export-position { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: #e7f0fb; color: var(--accent); font-weight: 700; }
 .export-card-content { min-width: 0; }
-.export-card-content h3 { margin: 6px 0 4px; font-size: 15px; line-height: 1.45; }
+.export-card-content h3 { display: flex; align-items: flex-start; gap: 8px; margin: 6px 0 4px; font-size: 15px; line-height: 1.45; }
+.export-card-content h3 > span { min-width: 0; overflow-wrap: anywhere; }
+.preview-title-copy { flex: none; padding: 2px 7px; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.preview-title-copy.copied { color: #1a7f37; }
 .export-card-content .cat { display: inline-block; padding: 1px 7px; border-radius: 8px; background: #e8ebef; color: var(--muted); font-size: 11px; }
 .image-mark, .original-no { margin-left: 8px; color: var(--muted); font-size: 11px; }
 .original-no { margin-left: 0; }

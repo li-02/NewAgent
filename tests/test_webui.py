@@ -78,6 +78,9 @@ class WebUiTests(unittest.TestCase):
         self.assertIn('<button id="copyExportTitleBtn" type="button"', html)
         self.assertIn('$("#copyExportTitleBtn").addEventListener("click", copyExportTitle)', app_js)
         self.assertIn('await navigator.clipboard.writeText(title)', app_js)
+        self.assertIn('return titles.join("；") || "今日资讯";', app_js)
+        self.assertIn('class="preview-title-copy"', app_js)
+        self.assertIn('copyPreviewTitle(it.title, event.currentTarget)', app_js)
 
     def test_index_item_picker_is_expanded_and_carryover_collapsed_by_default(self) -> None:
         html = self.client.get("/").get_data(as_text=True)

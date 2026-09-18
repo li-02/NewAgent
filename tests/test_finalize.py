@@ -28,7 +28,7 @@ class FinalizeTests(unittest.TestCase):
 
         result, _ = build_final(overview, blocks, [1], "2026-08-31")
 
-        self.assertTrue(result.startswith("# 今日资讯 | 科技日报0831\n\n## 测试资讯"))
+        self.assertTrue(result.startswith("# 测试资讯\n\n## 测试资讯"))
         self.assertNotIn("## 概览", result)
         self.assertNotIn("生成时间", result)
         self.assertNotIn("审核清单", result)
@@ -65,6 +65,20 @@ class FinalizeTests(unittest.TestCase):
         )
 
         self.assertTrue(result.startswith("# 自定义标题 第二行\n"))
+
+    def test_final_defaults_to_selected_titles_joined_by_semicolons(self) -> None:
+        overview = {
+            1: {"ov_title": "第一篇", "category": "要闻"},
+            2: {"ov_title": "第二篇", "category": "AI"},
+        }
+        blocks = {
+            1: ["## 第一篇 `#1`", "", "正文一"],
+            2: ["## 第二篇 `#2`", "", "正文二"],
+        }
+
+        result, _ = build_final(overview, blocks, [2, 1], "2026-09-01")
+
+        self.assertTrue(result.startswith("# 第二篇；第一篇\n"))
 
     def test_final_includes_sources_only_when_requested(self) -> None:
         overview = {1: {"ov_title": "测试资讯", "category": "要闻"}}

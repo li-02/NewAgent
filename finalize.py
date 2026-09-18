@@ -196,16 +196,28 @@ def display_date(date_str: str) -> str:
     return f"{date.year}-{date.month}-{date.day}"
 
 
-def default_final_title(date_str: str) -> str:
+def default_final_title(date_str: str, overview: dict | None = None, picks: list[int] | None = None) -> str:
     """Return the default editable title used for final exports."""
+    if overview is not None and picks:
+        titles = [
+            str(overview.get(no, {}).get("ov_title") or f"条目{no}").strip()
+            for no in picks
+        ]
+        if titles:
+            return "；".join(titles)
     date = datetime.strptime(date_str, "%Y-%m-%d")
     return f"今日资讯 | 科技日报{date:%m%d}"
 
 
-def normalize_final_title(title: str | None, date_str: str) -> str:
+def normalize_final_title(
+    title: str | None,
+    date_str: str,
+    overview: dict | None = None,
+    picks: list[int] | None = None,
+) -> str:
     """Keep an exported Markdown title on one bounded heading line."""
     clean = " ".join(str(title or "").splitlines()).strip().lstrip("#").strip()
-    return (clean or default_final_title(date_str))[:120].rstrip()
+    return (clean or default_final_title(date_str, overview, picks))[:120].rstrip()
 
 
 def existing_image(block: list[str], asset_root: Path | None) -> tuple[str, str] | None:
@@ -252,7 +264,7 @@ def build_final(
     picked = [n for n in picks if n in blocks]
     if asset_root is None:
         asset_root = ROOT / "output" / date_str
-    out_lines = [f"# {normalize_final_title(title, date_str)}", ""]
+    out_lines = [f"# {normalize_final_title(title, date_str, overview, picked)}", ""]
     rebuilt = []
     for new_no, old_no in enumerate(picked, 1):
         info = overview.get(old_no, {})

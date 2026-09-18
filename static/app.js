@@ -7,6 +7,7 @@ let previewTimer = null;
 let runPollTimer = null;
 let runWasActive = false;
 let exportOrder = [];
+let lastDefaultExportTitle = "";
 let exportCoverPath = null;
 let exportCoverCustom = false;
 let carryoverItems = [];
@@ -426,6 +427,11 @@ function moveExportItem(from, to) {
   const [moved] = exportOrder.splice(from, 1);
   exportOrder.splice(to, 0, moved);
   if (!exportCoverCustom) exportCoverPath = exportOrder[0]?.image_path || null;
+  const titleInput = $("#exportTitle");
+  if (titleInput && titleInput.value === lastDefaultExportTitle) {
+    lastDefaultExportTitle = defaultExportTitle(exportOrder);
+    titleInput.value = lastDefaultExportTitle;
+  }
   renderExportPreview();
 }
 
@@ -454,7 +460,7 @@ function renderExportPreview() {
       <div class="export-position">${index + 1}</div>
       <div class="export-card-content">
         <div><span class="cat">${it.category}</span>${it.has_img ? '<span class="image-mark">🖼 已配图</span>' : ""}</div>
-        <h3>${it.title}</h3>
+        <h3><span>${it.title}</span><button class="preview-title-copy" type="button" title="复制文章标题">复制标题</button></h3>
         <div class="original-no">原草稿 #${it.no}</div>
       </div>
       <div class="order-buttons">
@@ -463,6 +469,10 @@ function renderExportPreview() {
       </div>`;
     card.querySelector(".move-up").addEventListener("click", () => moveExportItem(index, index - 1));
     card.querySelector(".move-down").addEventListener("click", () => moveExportItem(index, index + 1));
+    card.querySelector(".preview-title-copy").addEventListener("click", (event) => {
+      event.stopPropagation();
+      copyPreviewTitle(it.title, event.currentTarget);
+    });
     card.addEventListener("dragstart", (e) => {
       card.classList.add("dragging");
       e.dataTransfer.effectAllowed = "move";
@@ -486,10 +496,40 @@ function renderExportPreview() {
   $("#exportPreviewCount").textContent = `共 ${exportOrder.length} 条 · 拖动后将按 1–${exportOrder.length} 重新编号`;
 }
 
-function defaultExportTitle(d) {
-  const parts = String(d || "").split("-");
-  const suffix = parts.length === 3 ? `${parts[1].padStart(2, "0")}${parts[2].padStart(2, "0")}` : "";
-  return `今日资讯 | 科技日报${suffix}`;
+async function copyPreviewTitle(title, button) {
+  const text = String(title || "").trim();
+  if (!text) return;
+  const defaultLabel = button.dataset.defaultLabel || button.textContent;
+  button.dataset.defaultLabel = defaultLabel;
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      const input = document.createElement("textarea");
+      input.value = text;
+      input.setAttribute("readonly", "");
+      input.style.position = "fixed";
+      input.style.opacity = "0";
+      document.body.appendChild(input);
+      input.select();
+      if (!document.execCommand("copy")) throw new Error("浏览器拒绝了复制操作");
+      input.remove();
+    }
+    button.textContent = "已复制";
+    button.classList.add("copied");
+    status("✅ 文章标题已复制");
+    setTimeout(() => {
+      button.textContent = defaultLabel;
+      button.classList.remove("copied");
+    }, 1600);
+  } catch (error) {
+    status(`复制标题失败：${error.message}`, true);
+  }
+}
+
+function defaultExportTitle(order) {
+  const titles = (Array.isArray(order) ? order : []).map((item) => String(item.title || "").trim()).filter(Boolean);
+  return titles.join("；") || "今日资讯";
 }
 
 async function copyExportTitle() {
@@ -546,7 +586,8 @@ async function openExportPreview() {
   warningNode.textContent = warnings.length ? `⚠ 导出前检查提醒（仍可继续）：${warnings.join("；")}` : "✅ 导出前检查通过";
   warningNode.className = warnings.length ? "export-preview-warning warn" : "export-preview-warning ok";
   const titleInput = $("#exportTitle");
-  titleInput.value = defaultExportTitle(date);
+  lastDefaultExportTitle = defaultExportTitle(exportOrder);
+  titleInput.value = lastDefaultExportTitle;
   $("#includeSources").checked = false;
   $("#includeOverview").checked = false;
   $("#exportPreview").hidden = false;
