@@ -3,7 +3,14 @@ from __future__ import annotations
 import unittest
 from unittest.mock import Mock, patch
 
-from src.pipeline.generate import SYSTEM_PROMPT, assemble_digest, call_llm, clean_meta_reporting
+from src.pipeline.generate import (
+    SYSTEM_PROMPT,
+    USER_PROMPT,
+    assemble_digest,
+    call_llm,
+    clean_meta_reporting,
+    normalize_person_names,
+)
 from src.outputs.markdown import render_digest
 
 
@@ -95,6 +102,44 @@ class GenerateTests(unittest.TestCase):
 
         for section in ("AI", "芯片与硬件", "互联网与产品", "前沿科技", "商业与资本", "政策与产业"):
             self.assertIn(f"### {section}", result)
+
+    def test_english_person_names_are_rewritten_to_chinese(self) -> None:
+        item = {
+            "title": "Jensen Huang 谈下一代加速卡",
+            "url": "https://example.com/nvidia",
+            "source": "测试源",
+            "category": "chips",
+            "summary": "NVIDIA 首席执行官 Jensen Huang 表示，新产品将于年内出货。",
+            "text": "Jensen Huang 还提到 Lisa Su 所在公司的竞争。",
+            "sources": [("测试源", "https://example.com/nvidia")],
+        }
+
+        result = assemble_digest([], [item], "2026-09-19")
+
+        self.assertIn("黄仁勋", result)
+        self.assertIn("苏姿丰", result)
+        self.assertNotIn("Jensen Huang", result)
+        self.assertNotIn("Lisa Su", result)
+        self.assertEqual(item["display_title"], "黄仁勋谈下一代加速卡")
+
+    def test_chinese_annotated_person_names_keep_only_the_chinese_form(self) -> None:
+        self.assertEqual(
+            normalize_person_names("黄仁勋（Jensen Huang）在会上发言，Sam Altman's 计划暂未公布。"),
+            "黄仁勋在会上发言，萨姆·奥尔特曼的计划暂未公布。",
+        )
+        self.assertEqual(normalize_person_names("Fei-Fei Li (李飞飞) 团队发布了新模型。"), "李飞飞团队发布了新模型。")
+
+    def test_unknown_person_names_are_left_untouched(self) -> None:
+        self.assertEqual(
+            normalize_person_names("工程师 Zhang Wei 与 John Doe 参与了测试。"),
+            "工程师 Zhang Wei 与 John Doe 参与了测试。",
+        )
+
+    def test_prompts_require_chinese_person_names(self) -> None:
+        for prompt in (SYSTEM_PROMPT, USER_PROMPT):
+            self.assertIn("人名一律用中文", prompt)
+        self.assertIn("Jensen Huang 写作黄仁勋", SYSTEM_PROMPT)
+        self.assertIn("“黄仁勋”", USER_PROMPT)
 
 
 if __name__ == "__main__":

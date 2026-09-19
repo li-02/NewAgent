@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import os
 import re
-from typing import Optional
+from typing import Callable, Optional
 
 import httpx
 
@@ -44,13 +44,19 @@ SYSTEM_PROMPT = """你是一名专业、严谨的科技新闻资讯编辑与报�
 4. 标题和结论不得超出材料能够支持的范围，不得作缺乏依据的价值判断或因果判断。
 5. 使用第三人称报道，不描述写作过程，不使用“作为 AI”等自我指涉表达。
 
+人名与译名：
+1. 报道中提到人物时人名一律用中文，不直接使用英文名。
+2. 外国人物使用媒体通行的官方中文译名，例如 Sam Altman 写作萨姆·奥尔特曼、Elon Musk 写作埃隆·马斯克、Sundar Pichai 写作桑达尔·皮查伊、Demis Hassabis 写作戴密斯·哈萨比斯。
+3. 华人人物使用其本人的中文姓名，素材中只给出英文名时也要还原，例如 Jensen Huang 写作黄仁勋、Lisa Su 写作苏姿丰、Fei-Fei Li 写作李飞飞、Andrew Ng 写作吴恩达、Kai-Fu Lee 写作李开复、Alexandr Wang 写作汪滔。
+4. 确实找不到通行中文译名的人物保留原文姓名，不得自行音译造名。公司名、产品名、模型名和技术术语仍保留英文原名，不受本条约束。
+
 来源与引用：
 1. 对公司公告、个人声明等内容，应使用“该公司表示”“公告显示”等准确归因，不把相关方自述冒充独立事实。
 2. 直接引语必须忠实于原文；间接转述不得改变原意。
 3. 是否在成稿中显示来源名称和链接，遵循用户给出的输出格式；即使格式隐藏来源，也不得改变信息的事实属性或确定程度。
 4. 输入中的媒体名称、站点名称、文章标题、点赞/得分、评论数、阅读量和“获得关注”等信息是采集元数据，不能写成新闻事件本身。禁止使用“据某媒体报道”“该发现已在某站获得……分”“讨论数达……”等报道报道的表述；应直接陈述被报道的公司、产品、项目或事件。如果素材只有这类元数据而没有事件事实，则不要把元数据扩写成新闻内容。
 
-输出前自检：标题是否越过证据边界；人名、机构、时间、地点和数字是否准确；是否把推测写成事实；是否遗漏重要不确定性；是否加入材料之外的信息。真实性、来源透明度和禁止虚构的原则优先于其他写作要求。"""
+输出前自检：标题是否越过证据边界；人名、机构、时间、地点和数字是否准确；人名是否已按上述规则写成中文；是否把推测写成事实；是否遗漏重要不确定性；是否加入材料之外的信息。真实性、来源透明度和禁止虚构的原则优先于其他写作要求。"""
 
 USER_PROMPT = """请基于以下素材，为每一条素材各写一个条目，用于拼装今天的《科技日报》。
 
@@ -67,7 +73,7 @@ USER_PROMPT = """请基于以下素材，为每一条素材各写一个条目，
 
 ===ITEM===
 URL: <原样复制该素材的链接>
-标题: <15~30字的中文短标题，概括事件核心；专有名词/产品名保留英文>
+标题: <15~30字的中文短标题，概括事件核心；人名用中文，公司/产品/技术名保留英文>
 分类: <今日头条/AI/芯片与硬件/互联网与产品/前沿科技/商业与资本/政策与产业 七选一，按内容判断>
 TLDR: <60~120字的一段话摘要，概括整个事件的关键信息>
 BODY:
@@ -78,9 +84,11 @@ BODY:
 1. 条目数量与素材条数完全一致，一条不多不少，按素材给出的顺序。
 2. 严格基于素材写作：禁止编造素材中不存在的数字、结论和细节；素材里没有的信息不要用"常识"补齐。
 3. URL 必须原样复制素材中的链接，禁止改写、拼接、杜撰；URL 只用于回填字段，不要出现在标题、TLDR 和正文里。
-4. 客观陈述，不夸大；中文写作，专有名词保留英文原名。
+4. 客观陈述，不夸大；中文写作，公司名、产品名、模型名和技术术语保留英文原名，人名一律用中文。
 5. 除条目块外不要输出任何解释、标题或代码围栏。
 6. “今日头条”只用于会显著影响多个科技领域、产业格局或大众用户的重大事件；普通内容应归入对应垂直栏目。
+7. 人名一律用中文：外国人物用通行官方中文译名，华人人物用其本人的中文姓名，素材里只出现英文名时要还原原名
+   （例如 Jensen Huang 写“黄仁勋”、Lisa Su 写“苏姿丰”、Kai-Fu Lee 写“李开复”）；确实没有通行译名的才保留英文原名，不要自行音译。
 
 素材：
 ---
@@ -210,6 +218,81 @@ def clean_meta_reporting(text: str) -> str:
     return re.sub(r"[ \t]{2,}", " ", cleaned).strip()
 
 
+# 常见科技人物的中文名：外国人用媒体通行译名，华人用本人的中文姓名。
+# 这是 Prompt 要求之外的兜底——素材只给出英文名时，成稿里也不应留下英文人名。
+PERSON_NAME_ALIASES: dict[str, str] = {
+    "Sam Altman": "萨姆·奥尔特曼",
+    "Elon Musk": "埃隆·马斯克",
+    "Sundar Pichai": "桑达尔·皮查伊",
+    "Satya Nadella": "萨提亚·纳德拉",
+    "Mark Zuckerberg": "马克·扎克伯格",
+    "Tim Cook": "蒂姆·库克",
+    "Bill Gates": "比尔·盖茨",
+    "Demis Hassabis": "戴密斯·哈萨比斯",
+    "Dario Amodei": "达里奥·阿莫代伊",
+    "Ilya Sutskever": "伊利亚·苏茨克维",
+    "Geoffrey Hinton": "杰弗里·辛顿",
+    "Mira Murati": "米拉·穆拉蒂",
+    "Jensen Huang": "黄仁勋",
+    "Lisa Su": "苏姿丰",
+    "Yann LeCun": "杨立昆",
+    "Fei-Fei Li": "李飞飞",
+    "Andrew Ng": "吴恩达",
+    "Kai-Fu Lee": "李开复",
+    "Alexandr Wang": "汪滔",
+    "Eric Yuan": "袁征",
+}
+
+_CJK = "\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff"
+
+
+def _alias_rules(english: str, chinese: str) -> list[tuple[re.Pattern, str | Callable[[re.Match], str]]]:
+    en, zh = re.escape(english), re.escape(chinese)
+    # 紧邻中文（含句首句尾）时顺带吃掉两侧空格，避免留下「李飞飞 团队」这样的残留
+    lead = rf"(?:(?:^|(?<=[{_CJK}]))[ \t]*)?"
+    trail = rf"(?:[ \t]*(?=$|[{_CJK}]))?"
+
+    def replace(match: re.Match) -> str:
+        # 英文所有格在中文里写作「的」：Sam Altman's 计划 -> 萨姆·奥尔特曼的计划
+        return chinese + ("的" if match.group("poss") else "")
+
+    return [
+        # 「黄仁勋（Jensen Huang）」
+        (re.compile(rf"{lead}{zh}\s*[（(]\s*{en}(?:['’]s)?\s*[)）]{trail}", re.I), chinese),
+        # 「Jensen Huang（黄仁勋）」
+        (re.compile(rf"{lead}{en}(?:['’]s)?\s*[（(]\s*{zh}\s*[)）]{trail}", re.I), chinese),
+        # 英文名单独出现：夹在中文之间时连同空格一起替换
+        (
+            re.compile(
+                rf"{lead}(?<![A-Za-z]){en}(?P<poss>['’]s)?(?![A-Za-z]){trail}",
+                re.I,
+            ),
+            replace,
+        ),
+    ]
+
+
+_NAME_ALIAS_RULES = [
+    rule
+    for english, chinese in sorted(PERSON_NAME_ALIASES.items(), key=lambda kv: len(kv[0]), reverse=True)
+    for rule in _alias_rules(english, chinese)
+]
+
+
+def normalize_person_names(text: str) -> str:
+    """把人名统一成中文：英文名替换为通行译名或本人的中文姓名。
+
+    已经是「黄仁勋（Jensen Huang）」「Jensen Huang（黄仁勋）」这类中英并写的，
+    只保留中文，避免替换后出现「黄仁勋（黄仁勋）」。
+    """
+    if not text:
+        return text
+    out = text
+    for pattern, replacement in _NAME_ALIAS_RULES:
+        out = pattern.sub(replacement, out)
+    return out
+
+
 def merge_changelog_updates(items: list[dict]) -> list[dict]:
     """同一工具同日的多个 changelog 版本合并为一条：
     保留排序最前的版本作主条目，其余版本的链接与变更内容并入。"""
@@ -245,11 +328,11 @@ def assemble_digest(parsed: list[dict], items: list[dict], date_str: str) -> str
             (p for p in parsed if normalize_url(p["url"]) == normalize_url(it["url"])),
             None,
         )
-        title = (p["title"] if p and p["title"] else it["title"])
+        title = normalize_person_names(p["title"] if p and p["title"] else it["title"])
         it["display_title"] = title
         category = p["category"] if p else CATEGORY_FALLBACK.get(it.get("category", "news"), "今日头条")
-        tldr = p["tldr"] if p else clean_meta_reporting((it.get("summary") or "")[:150])
-        body = p["body"] if p else clean_meta_reporting((it.get("text") or it.get("summary") or "")[:400])
+        tldr = normalize_person_names(p["tldr"] if p else clean_meta_reporting((it.get("summary") or "")[:150]))
+        body = normalize_person_names(p["body"] if p else clean_meta_reporting((it.get("text") or it.get("summary") or "")[:400]))
         if it.get("observed_at"):
             body = f"首次检测：{it['observed_at']:%Y-%m-%d %H:%M UTC}；原始发布时间未知。\n\n" + body
         links = [u for _, u in it.get("sources", [(it["source"], it["url"])])]
