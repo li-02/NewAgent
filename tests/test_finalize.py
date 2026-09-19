@@ -28,7 +28,7 @@ class FinalizeTests(unittest.TestCase):
 
         result, _ = build_final(overview, blocks, [1], "2026-08-31")
 
-        self.assertTrue(result.startswith("# 测试资讯\n\n## 测试资讯"))
+        self.assertTrue(result.startswith("# 测试资讯 | 科技日报0831\n\n## 测试资讯"))
         self.assertNotIn("## 概览", result)
         self.assertNotIn("生成时间", result)
         self.assertNotIn("审核清单", result)
@@ -78,7 +78,31 @@ class FinalizeTests(unittest.TestCase):
 
         result, _ = build_final(overview, blocks, [2, 1], "2026-09-01")
 
-        self.assertTrue(result.startswith("# 第二篇；第一篇\n"))
+        self.assertTrue(result.startswith("# 第二篇；第一篇 | 科技日报0901\n"))
+
+    def test_final_default_title_without_picks_keeps_date_suffix(self) -> None:
+        result, _ = build_final({}, {}, [], "2026-09-01")
+
+        self.assertEqual(result.splitlines()[0], "# 今日资讯 | 科技日报0901")
+
+    def test_final_default_title_keeps_date_suffix_when_titles_exceed_limit(self) -> None:
+        overview = {
+            1: {"ov_title": "甲" * 60, "category": "要闻"},
+            2: {"ov_title": "乙" * 60, "category": "AI"},
+            3: {"ov_title": "丙" * 60, "category": "AI"},
+        }
+        blocks = {
+            no: [f"## {info['ov_title']} `#{no}`", "", "正文"]
+            for no, info in overview.items()
+        }
+
+        result, _ = build_final(overview, blocks, [1, 2, 3], "2026-09-01")
+
+        head = result.splitlines()[0]
+        self.assertLessEqual(len(head), 120)
+        self.assertTrue(head.endswith(" | 科技日报0901"))
+        self.assertTrue(head.startswith("# 甲"))
+        self.assertNotIn("丙", head)
 
     def test_final_includes_sources_only_when_requested(self) -> None:
         overview = {1: {"ov_title": "测试资讯", "category": "要闻"}}

@@ -78,7 +78,8 @@ class WebUiTests(unittest.TestCase):
         self.assertIn('<button id="copyExportTitleBtn" type="button"', html)
         self.assertIn('$("#copyExportTitleBtn").addEventListener("click", copyExportTitle)', app_js)
         self.assertIn('await navigator.clipboard.writeText(title)', app_js)
-        self.assertIn('return titles.join("；") || "今日资讯";', app_js)
+        self.assertIn('return fitExportTitle(titles.join("；") || "今日资讯", exportDateSuffix(d));', app_js)
+        self.assertIn('return parts.length === 3 ? ` | 科技日报${parts[1].padStart(2, "0")}${parts[2].padStart(2, "0")}` : "";', app_js)
         self.assertIn('class="preview-title-copy"', app_js)
         self.assertIn('copyPreviewTitle(it.title, event.currentTarget)', app_js)
 

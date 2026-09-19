@@ -31,6 +31,7 @@ OV_ITEM = re.compile(r"^- (.+?)(?:\s+`#(\d+)`)?$")
 OV_GROUP = re.compile(r"^### (.+)$")
 PLACEHOLDER_START = "<!-- 📷 截图占位"
 IMAGE_SLOT = "<!-- 📷 图片区域 -->"
+TITLE_MAX_LEN = 120  # 终稿标题单行上限，与导出框 maxlength 保持一致
 
 
 def slugify(text: str, max_len: int = 40) -> str:
@@ -196,17 +197,34 @@ def display_date(date_str: str) -> str:
     return f"{date.year}-{date.month}-{date.day}"
 
 
+def date_suffix(date_str: str) -> str:
+    """标题末尾的日期后缀：` | 科技日报MMDD`。"""
+    date = datetime.strptime(date_str, "%Y-%m-%d")
+    return f" | 科技日报{date:%m%d}"
+
+
+def fit_title(body: str, suffix: str) -> str:
+    """标题主体压进单行上限；超长时优先整条丢弃，保证末尾日期后缀不被截掉。"""
+    room = TITLE_MAX_LEN - len(suffix)
+    parts = str(body or "").split("；")
+    while len(parts) > 1 and len("；".join(parts)) > room:
+        parts.pop()
+    joined = "；".join(parts)
+    return (joined[:room].rstrip("； ").rstrip() or "今日资讯") + suffix
+
+
 def default_final_title(date_str: str, overview: dict | None = None, picks: list[int] | None = None) -> str:
     """Return the default editable title used for final exports."""
+    body = "今日资讯"
     if overview is not None and picks:
         titles = [
             str(overview.get(no, {}).get("ov_title") or f"条目{no}").strip()
             for no in picks
         ]
+        titles = [t for t in titles if t]
         if titles:
-            return "；".join(titles)
-    date = datetime.strptime(date_str, "%Y-%m-%d")
-    return f"今日资讯 | 科技日报{date:%m%d}"
+            body = "；".join(titles)
+    return fit_title(body, date_suffix(date_str))
 
 
 def normalize_final_title(
@@ -217,7 +235,12 @@ def normalize_final_title(
 ) -> str:
     """Keep an exported Markdown title on one bounded heading line."""
     clean = " ".join(str(title or "").splitlines()).strip().lstrip("#").strip()
-    return (clean or default_final_title(date_str, overview, picks))[:120].rstrip()
+    if not clean:
+        return default_final_title(date_str, overview, picks)
+    suffix = date_suffix(date_str)
+    if clean.endswith(suffix):
+        return fit_title(clean[: -len(suffix)].rstrip(), suffix)
+    return clean[:TITLE_MAX_LEN].rstrip()
 
 
 def existing_image(block: list[str], asset_root: Path | None) -> tuple[str, str] | None:
@@ -351,7 +374,7 @@ def main() -> int:
     ap.add_argument("--single", type=int, default=None, help="单条导出：只导出指定编号的一条")
     ap.add_argument("--date", default=datetime.now().strftime("%Y-%m-%d"), help="草稿日期")
     ap.add_argument("--out", default=None, help="输出路径（默认 output/科技日报-{date}-终稿.md）")
-    ap.add_argument("--title", default=None, help="终稿标题（默认：今日资讯 | 科技日报MMDD）")
+    ap.add_argument("--title", default=None, help="终稿标题（默认：所选条目标题按序拼接 +「 | 科技日报MMDD」）")
     ap.add_argument("--include-sources", action="store_true", help="在终稿末尾附带信息源小节")
     ap.add_argument("--include-overview", action="store_true", help="在终稿开头附带概览，默认不导出")
     args = ap.parse_args()

@@ -429,7 +429,7 @@ function moveExportItem(from, to) {
   if (!exportCoverCustom) exportCoverPath = exportOrder[0]?.image_path || null;
   const titleInput = $("#exportTitle");
   if (titleInput && titleInput.value === lastDefaultExportTitle) {
-    lastDefaultExportTitle = defaultExportTitle(exportOrder);
+    lastDefaultExportTitle = defaultExportTitle(exportOrder, date);
     titleInput.value = lastDefaultExportTitle;
   }
   renderExportPreview();
@@ -527,9 +527,25 @@ async function copyPreviewTitle(title, button) {
   }
 }
 
-function defaultExportTitle(order) {
+const TITLE_MAX_LEN = 120;
+
+function exportDateSuffix(d) {
+  const parts = String(d || "").split("-");
+  return parts.length === 3 ? ` | 科技日报${parts[1].padStart(2, "0")}${parts[2].padStart(2, "0")}` : "";
+}
+
+// 标题主体超长时优先整条丢弃，保证末尾的日期后缀不会被截掉。
+function fitExportTitle(body, suffix) {
+  const room = TITLE_MAX_LEN - suffix.length;
+  const parts = String(body || "").split("；");
+  while (parts.length > 1 && parts.join("；").length > room) parts.pop();
+  const joined = parts.join("；").slice(0, room).replace(/[；\s]+$/, "");
+  return `${joined || "今日资讯"}${suffix}`;
+}
+
+function defaultExportTitle(order, d) {
   const titles = (Array.isArray(order) ? order : []).map((item) => String(item.title || "").trim()).filter(Boolean);
-  return titles.join("；") || "今日资讯";
+  return fitExportTitle(titles.join("；") || "今日资讯", exportDateSuffix(d));
 }
 
 async function copyExportTitle() {
@@ -586,13 +602,14 @@ async function openExportPreview() {
   warningNode.textContent = warnings.length ? `⚠ 导出前检查提醒（仍可继续）：${warnings.join("；")}` : "✅ 导出前检查通过";
   warningNode.className = warnings.length ? "export-preview-warning warn" : "export-preview-warning ok";
   const titleInput = $("#exportTitle");
-  lastDefaultExportTitle = defaultExportTitle(exportOrder);
+  lastDefaultExportTitle = defaultExportTitle(exportOrder, date);
   titleInput.value = lastDefaultExportTitle;
   $("#includeSources").checked = false;
   $("#includeOverview").checked = false;
   $("#exportPreview").hidden = false;
   titleInput.focus();
-  titleInput.setSelectionRange(0, "今日资讯".length);
+  // 默认标题是条目拼接，光标停在末尾继续编辑，避免选中前几个字被误覆盖。
+  titleInput.setSelectionRange(titleInput.value.length, titleInput.value.length);
 }
 
 async function confirmExport() {

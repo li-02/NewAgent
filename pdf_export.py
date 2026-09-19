@@ -94,6 +94,7 @@ def markdown_to_pdf(markdown: str, output: Path, asset_root: Path) -> Path:
     margin = 18 * mm
     content_width = page_width - 2 * margin
     story = []
+    doc_title = "今日资讯"  # PDF 文档属性标题跟随正文 H1
     in_comment = False
     in_code = False
     code_lines: list[str] = []
@@ -135,6 +136,7 @@ def markdown_to_pdf(markdown: str, output: Path, asset_root: Path) -> Path:
         if line == "---":
             story.append(HRFlowable(width="100%", thickness=0.6, color=colors.HexColor("#d8dee6"), spaceBefore=5, spaceAfter=7))
         elif line.startswith("# "):
+            doc_title = line[2:].strip() or doc_title
             story.append(Paragraph(_inline(line[2:]), title))
         elif line.startswith("## "):
             story.append(Paragraph(_inline(line[3:]), h2))
@@ -159,7 +161,7 @@ def markdown_to_pdf(markdown: str, output: Path, asset_root: Path) -> Path:
     doc = SimpleDocTemplate(
         str(output), pagesize=A4, leftMargin=margin, rightMargin=margin,
         topMargin=16 * mm, bottomMargin=16 * mm,
-        title="今日资讯", author="科技日报控制中心",
+        title=doc_title, author="科技日报控制中心",
     )
     doc.build(story, onFirstPage=draw_footer, onLaterPages=draw_footer)
     return output
