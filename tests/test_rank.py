@@ -35,6 +35,28 @@ class RankPreferenceTests(unittest.TestCase):
         visible = [it for it in ranked if not it["ranking_matches"]["blocked"]][:1]
         self.assertEqual([it["title"] for it in visible], ["保留消息"])
 
+    def test_priority_keywords_outrank_ordinary_high_score_items(self):
+        items = [
+            {"title": "芯片发布", "summary": "GPU 芯片正式发布", "weight": 3},
+            {"title": "OpenAI 发布 GPT-6 Sol 与 Luna", "summary": "新模型上线", "weight": 1},
+        ]
+
+        ranked = rank(items, {"priority_keywords": ["openai", "gpt-6"]})
+
+        self.assertEqual(ranked[0]["title"], "OpenAI 发布 GPT-6 Sol 与 Luna")
+        self.assertEqual(ranked[0]["ranking_matches"]["priority"], ["openai", "gpt-6"])
+
+    def test_priority_items_are_selected_before_category_representatives(self):
+        items = [
+            {"title": "普通硬件新闻", "category": "chips", "score": 20},
+            {"title": "OpenAI 发布模型", "category": "ai", "score": 10,
+             "ranking_matches": {"priority": ["openai"]}},
+        ]
+
+        selected = select_balanced(items, 1)
+
+        self.assertEqual(selected[0]["title"], "OpenAI 发布模型")
+
 
 if __name__ == "__main__":
     unittest.main()

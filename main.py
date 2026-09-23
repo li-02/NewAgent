@@ -164,11 +164,12 @@ def main() -> int:
     ]
     candidates = windowed
     known = db.known_hashes([url_hash(it["url"]) for it in candidates])
-    items = dedup(candidates, known)
-    if not items and candidates:
-        # 去重只用于避免重复入库，不能阻止用户手动生成当天快照。
-        items = dedup(candidates, set())
-        print("       本次条目均已收录，仍生成当天快照（不覆盖历史文件）")
+    new_items = dedup(candidates, known)
+    # SQLite 去重只用于判断哪些条目需要新增入库，不能限制当天日报的
+    # 重生成内容；否则第二次运行会只剩下少量新条目并覆盖完整日报。
+    items = dedup(candidates, set())
+    if candidates and not new_items:
+        print("       本次条目均已收录，仍按完整窗口生成当天快照")
     print(f"       抓到 {fetched_count} 条 → 窗口内 {len(windowed)} 条 → 本稿候选 {len(items)} 条")
     merged = merge_changelog_updates(items)
     if len(merged) != len(items):

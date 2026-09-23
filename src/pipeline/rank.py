@@ -39,6 +39,13 @@ def score_item(item: dict, preferences: dict | None = None) -> float:
     bonus = sum(w for pattern, w in RULES if re.search(pattern, text, re.IGNORECASE))
     preferences = preferences or {}
     hits = {"boost": [], "downrank": [], "blocked": []}
+    priority_keywords = [str(k).strip() for k in preferences.get("priority_keywords", []) or [] if str(k).strip()]
+    priority_hits = [keyword for keyword in priority_keywords if keyword.lower() in text]
+    if priority_hits:
+        # Keep priority topics ahead of ordinary topical relevance, even when
+        # the source has a lower weight or the article is less keyword-dense.
+        bonus += 100.0
+        hits["priority"] = priority_hits
     for key, factor in (("boost_keywords", 2.0), ("downrank_keywords", -2.0), ("block_keywords", -1000.0)):
         for keyword in preferences.get(key, []) or []:
             if str(keyword).strip().lower() in text:
@@ -59,16 +66,26 @@ def select_balanced(items: list[dict], limit: int) -> list[dict]:
     """优先保留每个已出现科技栏目的最高分条目，再按总分补满名额。"""
     if limit <= 0:
         return []
-    representatives: list[dict] = []
-    represented: set[str] = set()
+    priority = [item for item in items if item.get("ranking_matches", {}).get("priority")]
+    if len(priority) >= limit:
+        return priority[:limit]
+
+    representatives: list[dict] = list(priority)
+    selected_ids = {id(item) for item in representatives}
+    represented: set[str] = {
+        CATEGORY_GROUPS.get(str(item.get("category") or "news"), "headline")
+        for item in representatives
+    }
     for item in items:
+        if id(item) in selected_ids:
+            continue
         group = CATEGORY_GROUPS.get(str(item.get("category") or "news"), "headline")
         if group not in represented:
             representatives.append(item)
+            selected_ids.add(id(item))
             represented.add(group)
         if len(representatives) >= limit:
             return representatives
 
-    selected_ids = {id(item) for item in representatives}
     selected = representatives + [item for item in items if id(item) not in selected_ids]
     return selected[:limit]

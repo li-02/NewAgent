@@ -26,6 +26,13 @@ llm:
 
 # 个人排序偏好：命中后会在排序中加分、降权或屏蔽
 preferences:
+  # 命中任一关键词的条目优先进入日报，优先级高于普通主题排序
+  priority_keywords:
+    - openai
+    - anthropic
+    - claude
+    - gpt-6
+    - opus 5.5
   boost_keywords: []
   downrank_keywords: []
   block_keywords: []
