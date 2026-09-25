@@ -3,15 +3,34 @@ from __future__ import annotations
 import unittest
 from unittest.mock import Mock, patch
 
+import httpx
+
 from src.pipeline.generate import (
     SYSTEM_PROMPT,
     USER_PROMPT,
     assemble_digest,
     call_llm,
     clean_meta_reporting,
+    generate_digest,
     normalize_person_names,
 )
 from src.outputs.markdown import render_digest
+
+
+def _ok_response(content: str = "===ITEM===\nURL: https://example.com\n===END===") -> Mock:
+    response = Mock()
+    response.status_code = 200
+    response.json.return_value = {"choices": [{"message": {"content": content}}]}
+    return response
+
+
+def _status_error_response(status_code: int) -> Mock:
+    response = Mock()
+    response.status_code = status_code
+    response.raise_for_status.side_effect = httpx.HTTPStatusError(
+        f"HTTP {status_code}", request=Mock(), response=response
+    )
+    return response
 
 
 class GenerateTests(unittest.TestCase):
@@ -62,6 +81,86 @@ class GenerateTests(unittest.TestCase):
         self.assertEqual(payload["messages"][1]["role"], "user")
         self.assertIn("测试素材", payload["messages"][1]["content"])
         response.raise_for_status.assert_called_once_with()
+
+    @patch("src.pipeline.generate.time.sleep")
+    @patch("src.pipeline.generate.httpx.post")
+    def test_call_llm_retries_on_connection_drop(self, post: Mock, sleep: Mock) -> None:
+        post.side_effect = [httpx.RemoteProtocolError("peer closed connection"), _ok_response()]
+
+        result = call_llm(
+            {"base_url": "https://api.example.com", "api_key": "k", "model": "m"},
+            "测试素材",
+        )
+
+        self.assertIn("===ITEM===", result)
+        self.assertEqual(post.call_count, 2)
+        sleep.assert_called_once()
+
+    @patch("src.pipeline.generate.time.sleep")
+    @patch("src.pipeline.generate.httpx.post")
+    def test_call_llm_gives_up_after_exhausted_retries(self, post: Mock, sleep: Mock) -> None:
+        post.side_effect = httpx.ConnectError("connection reset")
+
+        with self.assertRaises(httpx.ConnectError):
+            call_llm(
+                {"base_url": "https://api.example.com", "api_key": "k", "model": "m", "max_retries": 1},
+                "测试素材",
+            )
+
+        self.assertEqual(post.call_count, 2)
+
+    @patch("src.pipeline.generate.time.sleep")
+    @patch("src.pipeline.generate.httpx.post")
+    def test_call_llm_retries_on_server_errors(self, post: Mock, sleep: Mock) -> None:
+        post.side_effect = [_status_error_response(502), _status_error_response(429), _ok_response()]
+
+        result = call_llm(
+            {"base_url": "https://api.example.com", "api_key": "k", "model": "m"},
+            "测试素材",
+        )
+
+        self.assertIn("===ITEM===", result)
+        self.assertEqual(post.call_count, 3)
+        self.assertEqual(sleep.call_count, 2)
+
+    @patch("src.pipeline.generate.time.sleep")
+    @patch("src.pipeline.generate.httpx.post")
+    def test_call_llm_does_not_retry_client_errors(self, post: Mock, sleep: Mock) -> None:
+        post.return_value = _status_error_response(401)
+
+        with self.assertRaises(httpx.HTTPStatusError):
+            call_llm(
+                {"base_url": "https://api.example.com", "api_key": "k", "model": "m"},
+                "测试素材",
+            )
+
+        self.assertEqual(post.call_count, 1)
+        sleep.assert_not_called()
+
+    def test_render_digest_marks_degraded_digest(self) -> None:
+        stats = {"fetched": 0, "kept": 0, "source_count": 0}
+        result = render_digest([], "2026-09-25", "## 概览\n", stats, degraded=True)
+
+        self.assertIn("成稿降级", result)
+        self.assertNotIn("成稿降级", render_digest([], "2026-09-25", "## 概览\n", stats))
+
+    def test_generate_digest_reports_degradation_on_llm_failure(self) -> None:
+        item = {
+            "title": "测试资讯",
+            "url": "https://example.com/news",
+            "source": "测试源",
+            "category": "ai",
+            "summary": "一名开发者分享了自己制作的工具。",
+            "sources": [("测试源", "https://example.com/news")],
+        }
+
+        with patch("src.pipeline.generate.call_llm", side_effect=httpx.RemoteProtocolError("peer closed")):
+            body, degraded = generate_digest(
+                [item], "2026-09-25", {"base_url": "https://api.example.com", "api_key": "k", "model": "m"}
+            )
+
+        self.assertTrue(degraded)
+        self.assertIn("测试资讯", body)
 
     def test_clean_meta_reporting_removes_source_platform_metrics(self) -> None:
         text = "一个名为 Collusion 的新站点被发现。该发现已在 Hacker News 上获得`1483`分热度，讨论数达`1191`条。"

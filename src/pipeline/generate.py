@@ -1,10 +1,12 @@
 """成稿：LLM 逐条撰写（TLDR + 短段落正文 + 分类判断），代码负责装配《科技日报》版式：
 概览（按分类分组、#N 编号）→ 编号条目小节（截图占位 + 短段落正文 + 链接块，先图后文）。
-无 API key 或解析失败时，退化为同版式的摘要版。"""
+调用带退避重试，网络瞬断不应让全稿退化为摘要版；仍失败时退化为同版式的摘要版，
+并向上层返回降级标记，由渲染在稿件头部向读者明示。"""
 from __future__ import annotations
 
 import os
 import re
+import time
 from typing import Callable, Optional
 
 import httpx
@@ -142,21 +144,42 @@ def build_material(items: list[dict]) -> str:
     return "\n-----\n".join(blocks)
 
 
+# 成稿是一次大块请求（素材上万字符），服务端瞬断、限流或网关抖动都值得再试；
+# 客户端错误（401/400 等）重试无意义，直接失败走降级。
+RETRYABLE_STATUS = {429, 500, 502, 503, 504}
+RETRY_BACKOFF_SECONDS = (5, 15, 30)
+
+
 def call_llm(cfg: dict, material: str) -> str:
-    resp = httpx.post(
-        cfg["base_url"].rstrip("/") + "/chat/completions",
-        headers={"Authorization": f"Bearer {cfg['api_key']}"},
-        json={
-            "model": cfg["model"],
-            "temperature": cfg.get("temperature", 0.4),
-            "messages": [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": USER_PROMPT.format(material=material)},
-            ],
-        },
-        timeout=300,
-    )
-    resp.raise_for_status()
+    url = cfg["base_url"].rstrip("/") + "/chat/completions"
+    headers = {"Authorization": f"Bearer {cfg['api_key']}"}
+    payload = {
+        "model": cfg["model"],
+        "temperature": cfg.get("temperature", 0.4),
+        "messages": [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": USER_PROMPT.format(material=material)},
+        ],
+    }
+    retries = max(0, int(cfg.get("max_retries", 2)))
+    resp = None
+    for attempt in range(retries + 1):
+        try:
+            resp = httpx.post(url, headers=headers, json=payload, timeout=300)
+            resp.raise_for_status()
+            break
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code not in RETRYABLE_STATUS or attempt >= retries:
+                raise
+            wait = RETRY_BACKOFF_SECONDS[min(attempt, len(RETRY_BACKOFF_SECONDS) - 1)]
+            print(f"[warn] LLM 返回 HTTP {e.response.status_code}，{wait}s 后重试（第 {attempt + 1}/{retries} 次）")
+            time.sleep(wait)
+        except httpx.TransportError as e:
+            if attempt >= retries:
+                raise
+            wait = RETRY_BACKOFF_SECONDS[min(attempt, len(RETRY_BACKOFF_SECONDS) - 1)]
+            print(f"[warn] LLM 连接中断（{type(e).__name__}: {e}），{wait}s 后重试（第 {attempt + 1}/{retries} 次）")
+            time.sleep(wait)
     text = resp.json()["choices"][0]["message"]["content"].strip()
     return re.sub(r"^```(?:markdown)?\s*|\s*```$", "", text).strip()
 
@@ -379,16 +402,24 @@ def assemble_digest(parsed: list[dict], items: list[dict], date_str: str) -> str
     return "\n".join(lines).rstrip() + "\n"
 
 
-def generate_digest(items: list[dict], date_str: str, llm_cfg: Optional[dict]) -> str:
+def generate_digest(items: list[dict], date_str: str, llm_cfg: Optional[dict]) -> tuple[str, bool]:
+    """返回 (正文, 是否降级)。降级指 LLM 已启用但调用失败或返回内容解析不出任何条目，
+    此时整稿为来源原文摘录（多为英文），渲染时需要在稿件头部向读者明示。"""
     parsed: list[dict] = []
+    degraded = False
     if llm_cfg:
         try:
             parsed = parse_llm_items(call_llm(llm_cfg, build_material(items)))
-            if parsed:
-                print(f"       LLM 条目：{len(parsed)}/{len(items)} 条解析成功")
         except Exception as e:
             print(f"[warn] LLM 生成失败（{type(e).__name__}: {e}），退化为摘要版")
-    return assemble_digest(parsed, items, date_str)
+            degraded = True
+        else:
+            if parsed:
+                print(f"       LLM 条目：{len(parsed)}/{len(items)} 条解析成功")
+            else:
+                print("[warn] LLM 返回内容未解析出任何条目，退化为摘要版")
+                degraded = True
+    return assemble_digest(parsed, items, date_str), degraded
 
 
 def resolve_llm(cfg: dict, disabled: bool = False) -> Optional[dict]:

@@ -18,11 +18,13 @@ max_text_chars: 2500
 # enabled: auto     = 检测到 api key 就启用，否则退化为列表版
 # enabled: false    = 强制列表版
 # key 建议放环境变量 LLM_API_KEY，不要写进本文件
+# max_retries: 网络瞬断或服务端 429/5xx 时的重试次数（退避 5s/15s/30s，默认 2）
 llm:
   enabled: auto
   base_url: https://api.deepseek.com
   model: deepseek-v4-flash-vision-exp
   temperature: 0.7
+  max_retries: 2
 
 # 个人排序偏好：命中后会在排序中加分、降权或屏蔽
 preferences:

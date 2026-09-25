@@ -5,12 +5,17 @@ from datetime import datetime
 from pathlib import Path
 
 
-def render_digest(items: list[dict], date_str: str, body: str, stats: dict) -> str:
+def render_digest(items: list[dict], date_str: str, body: str, stats: dict, degraded: bool = False) -> str:
     header = [
         f"> 生成时间：{datetime.now():%Y-%m-%d %H:%M} ｜ "
         f"素材 {stats['fetched']} 条 → 入选 {stats['kept']} 条 ｜ "
         f"来源 {stats['source_count']} 个"
     ]
+    if degraded:
+        header.append(
+            "> ⚠️ **成稿降级**：本次 LLM 成稿失败，以下标题与正文为来源原文摘录"
+            "（未经改写，多为英文），请谨慎使用；可在控制中心重跑恢复成稿。"
+        )
     header.append("")
 
     src_counts: dict[str, int] = {}

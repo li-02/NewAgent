@@ -131,8 +131,8 @@ def main() -> int:
         items = items[:top_n]
         assign_screenshot_paths(items, date_str, int(cfg.get("screenshot_count", 5)))
         llm = resolve_llm(cfg.get("llm", {}), disabled=args.no_llm)
-        body = generate_digest(items, date_str, llm)
-        md = render_digest(items, date_str, body, {"fetched": 6, "kept": 5, "source_count": 5})
+        body, degraded = generate_digest(items, date_str, llm)
+        md = render_digest(items, date_str, body, {"fetched": 6, "kept": 5, "source_count": 5}, degraded=degraded)
         path = write_digest(md, ROOT / cfg["output"]["dir"], cfg["output"]["filename"], date_str)
         backup_filtered_draft(path, date_str, ROOT / "data" / "article-archive")
         print(f"[demo] 已生成：{path}")
@@ -204,13 +204,13 @@ def main() -> int:
     llm = resolve_llm(cfg.get("llm", {}), disabled=args.no_llm)
     print(f"       LLM：{('启用（' + llm['model'] + '）') if llm else '未检测到 API key，输出列表版'}")
     assign_screenshot_paths(items, date_str, int(cfg.get("screenshot_count", 5)))
-    body = generate_digest(items, date_str, llm)
+    body, degraded = generate_digest(items, date_str, llm)
     stats = {
         "fetched": fetched_count,
         "kept": len(items),
         "source_count": len({it["source"] for it in fetched}),
     }
-    md = render_digest(items, date_str, body, stats)
+    md = render_digest(items, date_str, body, stats, degraded=degraded)
 
     print("[6/6] 写入文件 + 更新去重库")
     path = write_digest(md, ROOT / cfg["output"]["dir"], cfg["output"]["filename"], date_str)
