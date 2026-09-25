@@ -161,7 +161,7 @@ sources:
   url: https://github.blog/changelog/feed/
   weight: 2
 - category: dev
-  enabled: true
+  enabled: false
   format: markdown
   item_limit: 5
   link_base: https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md
@@ -264,13 +264,13 @@ sources:
   url: https://help.openai.com/en/articles/20001275
   weight: 3
 - category: dev
-  enabled: true
+  enabled: false
   name: Codex 桌面端更新
   type: page_watch
   url: https://developers.openai.com/codex/changelog/
   weight: 3
 - category: dev
-  enabled: true
+  enabled: false
   name: Codex GitHub Releases
   type: rss
   url: https://github.com/openai/codex/releases.atom
@@ -288,43 +288,43 @@ sources:
   url: https://opencode.ai/docs/go/
   weight: 3
 - category: dev
-  enabled: true
+  enabled: false
   name: OpenCode Releases
   type: rss
   url: https://github.com/anomalyco/opencode/releases.atom
   weight: 3
 - category: dev
-  enabled: true
+  enabled: false
   name: LangChain Releases
   type: rss
   url: https://github.com/langchain-ai/langchain/releases.atom
   weight: 2
 - category: dev
-  enabled: true
+  enabled: false
   name: LlamaIndex Releases
   type: rss
   url: https://github.com/run-llama/llama_index/releases.atom
   weight: 2
 - category: dev
-  enabled: true
+  enabled: false
   name: vLLM Releases
   type: rss
   url: https://github.com/vllm-project/vllm/releases.atom
   weight: 2
 - category: dev
-  enabled: true
+  enabled: false
   name: Transformers Releases
   type: rss
   url: https://github.com/huggingface/transformers/releases.atom
   weight: 2
 - category: dev
-  enabled: true
+  enabled: false
   name: Ollama Releases
   type: rss
   url: https://github.com/ollama/ollama/releases.atom
   weight: 2
 - category: dev
-  enabled: true
+  enabled: false
   name: MCP Python SDK Releases
   type: rss
   url: https://github.com/modelcontextprotocol/python-sdk/releases.atom
