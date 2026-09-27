@@ -17,16 +17,31 @@ jobs:
         with:
           python-version: "3.12"
 
-      - run: pip install -r requirements.txt
+      - name: 安装依赖
+        run: |
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
 
-      - run: python main.py
+      # 先跑测试再出稿：坏代码不应进入主干，也不该浪费一次 LLM 调用
+      - name: 运行测试
+        run: python -m pytest -q
+
+      - name: 生成日报
+        run: python main.py
         env:
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
 
-      - name: Commit digest
+      # output/ 在 .gitignore 中（那是为了不把本地产物误提交），
+      # 因此这里必须 -f 强制加入，否则 git add 静默失败、产物被丢弃。
+      # pathspec 排除图片压缩工具保留的 .orig 原图备份（上百 MB，不该进仓库）。
+      - name: 提交日报
         run: |
           git config user.name "ai-news-bot"
           git config user.email "bot@users.noreply.github.com"
-          git add output
-          git commit -m "daily digest $(date +%F)" || echo "nothing to commit"
+          git add -f output ':(exclude)*.orig'
+          if git diff --cached --quiet; then
+            echo "本日产物无变化，跳过提交"
+            exit 0
+          fi
+          git commit -m "daily digest $(date +%F)"
           git push

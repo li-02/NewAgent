@@ -16,6 +16,11 @@ logs/
 output/
 tmp/
 
+# 图片压缩工具（tools/compress_assets.py）保留的原图备份。
+# CI 用 `git add -f output` 强制提交产物，会绕过 output/ 这条忽略规则，
+# 因此这些备份必须单独排除——否则上百 MB 的原图会被推进仓库。
+*.orig
+
 # Local tooling state and browser/test artifacts
 .omx/
 .playwright-cli/
