@@ -582,6 +582,48 @@ async function copyExportTitle() {
   }
 }
 
+async function exportSingles() {
+  const chosen = items.filter((it) => picks.has(it.no));
+  if (!chosen.length) {
+    status("请先在左侧勾选要发布的条目", true);
+    return;
+  }
+  const btn = $("#exportSinglesBtn");
+  btn.disabled = true;
+  const original = btn.textContent;
+  btn.textContent = "导出中…";
+  status(`正在导出 ${chosen.length} 篇单条稿…`);
+  try {
+    const r = await api("/api/export-singles", { date, picks: chosen.map((it) => it.no) });
+    if (!r.ok) {
+      status(r.error || "单条稿导出失败", true);
+      return;
+    }
+    const noImg = r.items.filter((it) => !it.has_img);
+    const longTitle = r.items.filter((it) => it.warnings.some((w) => w.includes("超过")));
+    const base = `✅ 已导出 ${r.count} 篇单条稿（草稿：${r.draft}）`;
+    const notes = [];
+    if (noImg.length) notes.push(`${noImg.length} 篇缺图（#${noImg.map((it) => it.no).join(" #")}）`);
+    if (longTitle.length) notes.push(`${longTitle.length} 篇标题超长（#${longTitle.map((it) => it.no).join(" #")}）`);
+    status(notes.length ? `${base}；⚠️ ${notes.join("，")}` : base);
+    const first = r.items[0];
+    if (first) window.open(outputUrl(first.path), "_blank");
+    renderFinalLink(r.items);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = original;
+  }
+}
+
+// 单条稿是多篇独立文件，没有单一 PDF，这里列出前几篇的可点击链接
+function renderFinalLink(rows) {
+  const shown = rows.slice(0, 3).map((it) => {
+    return `<a href="${outputUrl(it.path)}" target="_blank">#${it.no} ${it.title} ↗</a>`;
+  });
+  const more = rows.length > 3 ? ` 等 ${rows.length} 篇` : "";
+  $("#finalLink").innerHTML = shown.join(" · ") + more;
+}
+
 async function openExportPreview() {
   exportOrder = items.filter((it) => picks.has(it.no));
   if (!exportOrder.length) {
@@ -795,6 +837,7 @@ document.addEventListener("keydown", (e) => {
 });
 
 $("#exportBtn").addEventListener("click", openExportPreview);
+$("#exportSinglesBtn").addEventListener("click", exportSingles);
 $("#confirmExportBtn").addEventListener("click", confirmExport);
 $("#cancelExportBtn").addEventListener("click", closeExportPreview);
 $("#closeExportPreviewBtn").addEventListener("click", closeExportPreview);

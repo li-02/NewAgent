@@ -66,7 +66,8 @@ class FinalizeTests(unittest.TestCase):
 
         self.assertTrue(result.startswith("# 自定义标题 第二行\n"))
 
-    def test_final_defaults_to_selected_titles_joined_by_semicolons(self) -> None:
+    def test_final_default_title_uses_first_pick_only(self) -> None:
+        """默认标题不再拼接多条：拼接标题会被公众号截到前 20 字、小红书无法输入。"""
         overview = {
             1: {"ov_title": "第一篇", "category": "要闻"},
             2: {"ov_title": "第二篇", "category": "AI"},
@@ -78,7 +79,8 @@ class FinalizeTests(unittest.TestCase):
 
         result, _ = build_final(overview, blocks, [2, 1], "2026-09-01")
 
-        self.assertTrue(result.startswith("# 第二篇；第一篇 | 科技日报0901\n"))
+        self.assertTrue(result.startswith("# 第二篇 | 科技日报0901\n"))
+        self.assertNotIn("；", result.splitlines()[0])
 
     def test_final_default_title_without_picks_keeps_date_suffix(self) -> None:
         result, _ = build_final({}, {}, [], "2026-09-01")

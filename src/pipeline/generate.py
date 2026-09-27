@@ -14,6 +14,13 @@ import httpx
 from src.pipeline.dedup import normalize_url
 
 CATEGORIES = ["今日头条", "AI", "芯片与硬件", "互联网与产品", "前沿科技", "商业与资本", "政策与产业"]
+
+# 条目标题字符上限，取三个平台的共同下限：
+#   - 微信公众号手机列表页：约 17 个汉字后被省略号截断（官方运营建议 10~17 字）
+#   - 小红书标题输入框：硬限 20 字
+#   - 今日头条信息流：约 30 字
+# 按 17 字写，三个平台都能完整显示；写 20 字则公众号上仍会被截断。
+TITLE_CHAR_LIMIT = 17
 CATEGORY_FALLBACK = {  # 源配置的 category -> 日报分类
     "news": "今日头条",
     "ai": "AI",
@@ -75,12 +82,21 @@ USER_PROMPT = """请基于以下素材，为每一条素材各写一个条目，
 
 ===ITEM===
 URL: <原样复制该素材的链接>
-标题: <15~30字的中文短标题，概括事件核心；人名用中文，公司/产品/技术名保留英文>
+标题: <12~17字，单一焦点标题；人名用中文，公司/产品/技术名保留英文>
 分类: <今日头条/AI/芯片与硬件/互联网与产品/前沿科技/商业与资本/政策与产业 七选一，按内容判断>
 TLDR: <60~120字的一段话摘要，概括整个事件的关键信息>
 BODY:
 <正文：2~6个短段落，每段只讲一个事实，段落之间用空行分隔；关键人名/公司/产品名用**加粗**，关键数字/版本号/专有名词用`反引号`>
 ===END===
+
+标题的写法（17 字上限是硬要求，同一篇稿要发公众号/小红书/头条，
+公众号手机列表页只显示约 17 个字，超出的部分读者根本看不到）：
+- 一条素材只有一个焦点：只写这件事里最值得知道的那一个点，不要把多个信息点挤进标题。
+- 优先把「谁 + 做了什么 + 关键结果/数字」放进前 12 个字。数字、金额、版本号比形容词更抓人。
+- 允许把素材里真实存在的冲突、异常、代价、争议直接写进标题（例如模型逃出沙箱、被罚金额、服务中断），
+  这是提炼事实，不是标题党。禁止的是编造夸张——第 3 条禁令依然有效。
+- 不要用「XX 日报」「今日要闻」「一文读懂」这类栏目式开头，也不要在标题里带「重磅」「炸裂」等夸张词。
+
 
 硬性要求：
 1. 条目数量与素材条数完全一致，一条不多不少，按素材给出的顺序。
@@ -316,6 +332,52 @@ def normalize_person_names(text: str) -> str:
     return out
 
 
+def trim_title(title: str, limit: int = TITLE_CHAR_LIMIT) -> str:
+    """把条目标题压到平台列表页能完整显示的字符数以内（成稿阶段的兜底）。
+
+    公众号订阅号列表只完整显示约 17 个汉字，头条信息流约 30 字，小红书标题框
+    硬限 20 字。Prompt 已要求 12~17 字，
+    这里是兜底：LLM 偶尔仍会写长。
+
+    注意这只用于生成阶段——此处无法与作者确认，只能机械截断，因此必须处理
+    「截出残句」的问题：在词边界收尾，并去掉被截断后悬空的连接词与标点。
+    实测不处理会得到「…沙箱模型曾违规接」「…准确率达 80%」被切成「…准确」
+    这类读不通的标题，比原句更糟。人工导出阶段不调用本函数（只提示不破坏内容）。
+    """
+    clean = re.sub(r"\s+", " ", str(title or "")).strip()
+    if count_title_chars(clean) <= limit:
+        return clean
+    out: list[str] = []
+    used = 0
+    for token in re.findall(r"[A-Za-z0-9][A-Za-z0-9.\-]*|.", clean):
+        cost = count_title_chars(token)
+        if used + cost > limit:
+            break
+        out.append(token)
+        used += cost
+    hard = "".join(out).rstrip()
+    # 只回退到「略短一点」的边界：回退过多会把标题砍成残句。
+    # 例如「调查称 OpenAI 智能体借短链藏匿攻击载荷并调用外部模型」，
+    # 回退到子句边界只剩「调查称 OpenAI」，信息量远不如硬截断的结果。
+    for sep in ("；", "，", "、", "：", "—", " "):
+        head = hard.rsplit(sep, 1)[0].rstrip()
+        if head and len(hard) - len(head) <= 3:
+            hard = head
+            break
+    # 去掉截断后悬空的连接词/助词，避免句子断在半截
+    trimmed = re.sub(r"(?:并|和|与|及|或|以|在|的|曾|将|把|被|为|而|等|使|让|称|达)$", "", hard)
+    return (trimmed or hard).rstrip("，,、；;：: 　") or clean[:limit]
+
+
+def count_title_chars(text: str) -> int:
+    """标题宽度计数：中日韩字符按 1 计，其余（拉丁字母/数字）按 0.5 计。
+
+    平台限长通常按「一个字 = 一个全角宽度」计算，所以 20 个汉字约等于
+    40 个英文字符的显示宽度。这里用来判断标题是否过长。
+    """
+    return sum(1 if "\u2e80" <= ch <= "\u9fff" or "\uff00" <= ch <= "\uffef" else 0.5 for ch in text)
+
+
 def merge_changelog_updates(items: list[dict]) -> list[dict]:
     """同一工具同日的多个 changelog 版本合并为一条：
     保留排序最前的版本作主条目，其余版本的链接与变更内容并入。"""
@@ -351,7 +413,7 @@ def assemble_digest(parsed: list[dict], items: list[dict], date_str: str) -> str
             (p for p in parsed if normalize_url(p["url"]) == normalize_url(it["url"])),
             None,
         )
-        title = normalize_person_names(p["title"] if p and p["title"] else it["title"])
+        title = trim_title(normalize_person_names(p["title"] if p and p["title"] else it["title"]))
         it["display_title"] = title
         category = p["category"] if p else CATEGORY_FALLBACK.get(it.get("category", "news"), "今日头条")
         tldr = normalize_person_names(p["tldr"] if p else clean_meta_reporting((it.get("summary") or "")[:150]))

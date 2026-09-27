@@ -35,12 +35,15 @@ from finalize import (
     PLACEHOLDER_START,
     build_final,
     build_single,
+    export_singles,
     insert_placeholder,
     next_path,
     parse_draft_text,
     strip_placeholder,
+    title_warnings,
 )
 from pdf_export import markdown_to_pdf
+from src.image_ops import compress_to_jpeg
 from src.article_archive import article_keys_from_text, append_carryover, carryover_candidates, record_export
 from src.fetchers import run_source
 from src.source_config import (
@@ -656,12 +659,23 @@ def api_upload_image():
     m = re.match(r"data:image/(png|jpeg|jpg|webp|gif);base64,(.+)", data.get("data", ""), re.S)
     if not re.match(r"^\d{4}-\d{2}-\d{2}$", date) or not m:
         return jsonify({"ok": False, "error": "参数不合法"}), 400
-    ext = "jpg" if m.group(1) == "jpeg" else m.group(1)
+    raw = base64.b64decode(m.group(2))
+    # 粘贴截图统一压成 JPEG：原样落盘的 PNG 实测有单张 2.28 MB 的，
+    # 手机端首屏加载要好幾秒，读者在图片出来之前就划走了。
+    payload, compressed = compress_to_jpeg(raw)
+    ext = "jpg" if compressed else ("jpg" if m.group(1) == "jpeg" else m.group(1))
     asset_dir = OUTPUT / date / "assets" / date
     asset_dir.mkdir(parents=True, exist_ok=True)
     name = f"{datetime.now():%H%M%S}-{random.randint(1000, 9999)}.{ext}"
-    (asset_dir / name).write_bytes(base64.b64decode(m.group(2)))
-    return jsonify({"ok": True, "path": f"assets/{date}/{name}"})
+    (asset_dir / name).write_bytes(payload)
+    saved_kb = len(payload) / 1024
+    return jsonify({
+        "ok": True,
+        "path": f"assets/{date}/{name}",
+        "compressed": compressed,
+        "saved_kb": round(saved_kb, 1),
+        "original_kb": round(len(raw) / 1024, 1),
+    })
 
 
 @app.post("/api/export-cover")
@@ -768,6 +782,43 @@ def api_export():
         "selected": [f"#{r['no']}（原#{r['old_no']}·{r['cat']}）{r['title']}" for r in rebuilt],
         "checks": checks,
         "warnings": checks,
+    })
+
+
+@app.post("/api/export-singles")
+def api_export_singles():
+    """批量导出单条稿：每个选中条目各生成一篇独立稿件（单条新闻主流程）。
+
+    与「导出终稿」并列：终稿是含多条 + PDF 的合辑，这里是每篇一条新闻的散稿。
+    """
+    data = request.get_json(force=True)
+    date, picks = data.get("date", ""), data.get("picks", [])
+    p = draft_path(date)
+    if not re.match(r"^\d{4}-\d{2}-\d{2}$", date) or not p.exists():
+        return jsonify({"ok": False, "error": "草稿不存在"}), 400
+    overview, blocks = parse_draft_text(p.read_text(encoding="utf-8"))
+    nos = [int(n) for n in picks]
+    result = export_singles(overview, blocks, nos, date, ARTICLE_ARCHIVE)
+    if not result["exported"]:
+        return jsonify({"ok": False, "error": "没有可导出的条目（编号不在草稿中）"}), 400
+    rows = []
+    for row in result["exported"]:
+        meta = row["meta"]
+        rows.append({
+            "no": row["no"],
+            "name": row["name"],
+            "path": row["path"],
+            "title": row["title"],
+            "has_img": not meta["shot"],
+            "link_count": len(meta["links"]),
+            "warnings": title_warnings(meta),
+        })
+    return jsonify({
+        "ok": True,
+        "draft": p.name,
+        "count": len(rows),
+        "items": rows,
+        "failed": result["failed"],
     })
 
 

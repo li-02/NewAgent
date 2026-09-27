@@ -164,10 +164,22 @@ def main() -> int:
     ]
     candidates = windowed
     known = db.known_hashes([url_hash(it["url"]) for it in candidates])
-    new_items = dedup(candidates, known)
+    # 跨天标题判重：拦截「同一事件、不同媒体、不同 URL」的重复报道。
+    # url_hash 只能抓同 URL，抓不到同一件事的多家转述，会导致读者连续几天看到同一新闻。
+    # 区间上界取今天 00:00：同一天可以重跑，若不排除今天，本次刚写入的条目会在
+    # 下次运行时把自身判为重复，越重跑稿子越少。
+    cross_days = int(cfg.get("cross_day_dedup_days", 7) or 0)
+    recent_titles: list[str] = []
+    if cross_days > 0:
+        since = (datetime.now() - timedelta(days=cross_days)).isoformat(timespec="seconds")
+        today_start = datetime.now().strftime("%Y-%m-%dT00:00:00")
+        recent_titles = db.recent_titles(since, today_start)
+    new_items = dedup(candidates, known, recent_titles)
     # SQLite 去重只用于判断哪些条目需要新增入库，不能限制当天日报的
     # 重生成内容；否则第二次运行会只剩下少量新条目并覆盖完整日报。
-    items = dedup(candidates, set())
+    items = dedup(candidates, set(), recent_titles)
+    if cross_days > 0 and recent_titles and len(items) < len(windowed):
+        print(f"       跨天判重：与近 {cross_days} 天重复 {len(windowed) - len(items)} 条")
     if candidates and not new_items:
         print("       本次条目均已收录，仍按完整窗口生成当天快照")
     print(f"       抓到 {fetched_count} 条 → 窗口内 {len(windowed)} 条 → 本稿候选 {len(items)} 条")

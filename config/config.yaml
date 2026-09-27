@@ -28,7 +28,11 @@ llm:
 
 # 个人排序偏好：命中后会在排序中加分、降权或屏蔽
 preferences:
-  # 命中任一关键词的条目优先进入日报，优先级高于普通主题排序
+  # 命中任一关键词的条目优先进入日报，优先级高于普通主题排序。
+  # ⚠️ 这里是 OpenAI 长期霸屏的直接原因：priority_keywords 命中一次即 +100 分，
+  #    足以压过全部主题权重。此前 18 条成稿里 11 条以 OpenAI 为主角（61%），
+  #    账号因此被算法打上「OpenAI 动态」标签，泛科技读者留不住。
+  #    建议只留 1~2 个真正想长期跟踪的主体，或整体清空。
   priority_keywords:
     - openai
     - anthropic
@@ -38,6 +42,11 @@ preferences:
   boost_keywords: []
   downrank_keywords: []
   block_keywords: []
+
+# 跨天标题判重：拦截「同一事件、不同媒体、不同 URL」的重复报道（单位：天，0=关闭）
+# 靠 url_hash 抓不到这类重复（URL 不同），会导致同一件事连续两三天出现在日报里，
+# 读者刷到重复内容就会取关，是掉粉主因。
+cross_day_dedup_days: 7
 
 output:
   dir: output
